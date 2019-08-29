@@ -1,13 +1,12 @@
 from lsst.ts import salobj
-import asyncio
 import pathlib
 
 
 class RotatorCSC(salobj.ConfigurableCsc):
-    
+
     def __init__(self, config_dir=None, initial_state=salobj.State.STANDBY, initial_simulation_mode=0):
         schema_path = pathlib.Path(__file__).resolve().parents[4].joinpath("schema", "rotator.yaml")
-        super().__init__("Rotator", index=0, schema_path=schema_path, config_dir=config_dir, 
+        super().__init__("Rotator", index=0, schema_path=schema_path, config_dir=config_dir,
                          initial_state=initial_state, initial_simulation_mode=initial_simulation_mode)
         self.config = None
 
@@ -49,7 +48,7 @@ class RotatorCSC(salobj.ConfigurableCsc):
     async def do_positionSet(self, id_data):
         """ """
         pass
-        
+
     async def do_moveConstantVelocity(self, id_data):
         """ """
         pass
@@ -57,4 +56,3 @@ class RotatorCSC(salobj.ConfigurableCsc):
     async def do_velocitySet(self, id_data):
         """ """
         pass
-        
