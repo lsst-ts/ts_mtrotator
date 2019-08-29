@@ -1,0 +1,41 @@
+import asyncio
+
+from lsst.ts import salobj
+import unittest, pathlib
+from lsst.ts.rotator import RotatorCSC
+
+TEST_CONFIG_DIR = pathlib.Path(__file__).resolve().parent.joinpath("data", "config")
+
+class Harness:
+    def __init__(self, initial_state=salobj.State.STANDBY,
+                 config_dir=None,
+                 initial_simulation_mode=0):
+        salobj.test_utils.set_random_lsst_dds_domain()
+
+        self.csc = RotatorCSC(config_dir=config_dir, 
+                              initial_state=initial_state,
+                              initial_simulation_mode=initial_simulation_mode)
+        
+        self.remote = salobj.Remote(self.csc.domain, "Rotator")\
+
+        async def __aenter__(self):
+            await asyncio.gather(self.csc.start_task, self.remote.start_task)
+        
+        async def __aexit__(self):
+            await asyncio.gather(self.csc.close(), self.remote.close())
+
+
+class TestRotatorCSC(unittest.TestCase):
+
+    def test_basic_state_transitions(self):
+        async def doit():
+            async with Harness(config_dir=TEST_CONFIG_DIR) as harness:
+
+                evt_timeout = 5. 
+                state = await harness.evt_summaryState.next(flush=False, timeout=evt_timeout)
+                self.assertEqual(salobj.State(state.summaryState), salobj.State.STANDBY)
+
+        asyncio.get_event_loop().run_until_complete(doit())
+
+if __name__ == "__main__":
+    unittest.main()
