@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["FrameId", "TelemetryHeader", "RotatorTelemetry", "RotatorConfig"]
+__all__ = ["FrameId", "TelemetryHeader", "Telemetry", "Config"]
 
 import ctypes
 import enum
@@ -61,7 +61,7 @@ class Command(ctypes.Structure):
 
 
 class TelemetryHeader(ctypes.Structure):
-    """Telemetry header from MT Rotator or Rotator.
+    """Telemetry header from MT Hexapod or Rotator.
     """
     _pack_ = 1
     _fields_ = [
@@ -76,7 +76,7 @@ class TelemetryHeader(ctypes.Structure):
     ]
 
 
-class RotatorConfig(ctypes.Structure):
+class Config(ctypes.Structure):
     _pack_ = 1
     _fields_ = [
         ("velocity_limit", ctypes.c_double),
@@ -90,9 +90,7 @@ class RotatorConfig(ctypes.Structure):
     ]
 
 
-class RotatorMainTelemetry(ctypes.Structure):
-    """Rotator telemetry.
-    """
+class MainTelemetry(ctypes.Structure):
     _pack_ = 1
     _fields_ = [
         ("biss_motor_encoder_axis_a", ctypes.c_uint),
@@ -110,7 +108,7 @@ class RotatorMainTelemetry(ctypes.Structure):
     ]
 
 
-class RotatorSimulinkTelemetry(ctypes.Structure):
+class SimulinkTelemetry(ctypes.Structure):
     _pack_ = 1
     _fields_ = [
         ("cmd_pos", ctypes.c_double),
@@ -134,9 +132,9 @@ class RotatorSimulinkTelemetry(ctypes.Structure):
     ]
 
 
-class RotatorTelemetry(ctypes.Structure):
+class Telemetry(ctypes.Structure):
     _pack_ = 1
     _fields_ = [
-        ("main", RotatorMainTelemetry),
-        ("simulink", RotatorSimulinkTelemetry),
+        ("main", MainTelemetry),
+        ("simulink", SimulinkTelemetry),
     ]

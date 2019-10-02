@@ -19,13 +19,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from .constants import *
-from .structs import *
-from .server import *
-from .mock_controller import *
-from .rotator_csc import *
+__all__ = ["CMD_SERVER_PORT", "TLM_SERVER_PORT"]
 
-try:
-    from .version import *
-except ImportError:
-    __version__ = "?"
+
+CMD_SERVER_PORT = 5571
+TLM_SERVER_PORT = 5570
