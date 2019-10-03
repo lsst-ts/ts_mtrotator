@@ -1,6 +1,8 @@
 setupRequired(sconsUtils)
 setupRequired(ts_idl)  # IDL files and the quality of service file
 setupRequired(ts_salobj)
+setupRequired(ts_pymoog)
+setupRequired(ts_config_mttcs)  # Configuration files
 
 envPrepend(PATH, ${PRODUCT_DIR}/bin)
 

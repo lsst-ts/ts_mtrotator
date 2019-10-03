@@ -20,8 +20,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from .constants import *
+from .enums import *
 from .structs import *
-from .server import *
 from .mock_controller import *
 from .rotator_csc import *
 

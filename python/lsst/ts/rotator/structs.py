@@ -19,61 +19,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["FrameId", "TelemetryHeader", "Telemetry", "Config"]
+__all__ = ["Config", "Telemetry"]
 
 import ctypes
-import enum
-
-ERROR_CODE = 6401
-
-
-class CommandType(enum.IntEnum):
-    # why trigger and cmd (same value)?
-    STATE_TRIGGER = 0x8000
-    STATE_CMD = 0x8000
-    ENABLE_SUBSTATE_TRIGGER = 0x8002
-    POSITION_SET = 0x8007
-    SET_CONSTANT_VEL = 0x800B
-    CONFIG_VEL = 0x9001
-    CONFIG_ACCEL = 0x9002
-    # what is this; is it for rotator or hexapod?
-    TRACK_VEL_CMD = 0x9031
-
-
-class FrameId(enum.IntEnum):
-    TELEMETRY = 5
-    CONFIG = 25
-
-
-class Command(ctypes.Structure):
-    _pack_ = 1
-    _fields_ = [
-        ("sync_pattern", ctypes.c_ushort),
-        ("counter", ctypes.c_ushort),
-        ("cmd", ctypes.c_uint),
-        ("param1", ctypes.double),
-        ("param2", ctypes.double),
-        ("param3", ctypes.double),
-        ("param4", ctypes.double),
-        ("param5", ctypes.double),
-        ("param6", ctypes.double),
-    ]
-
-
-class TelemetryHeader(ctypes.Structure):
-    """Telemetry header from MT Hexapod or Rotator.
-    """
-    _pack_ = 1
-    _fields_ = [
-        ("sync_pattern", ctypes.c_ushort),
-        ("frame_id", ctypes.c_ushort),
-        ("counter", ctypes.c_ushort),
-        ("mjd", ctypes.c_int),
-        ("mjd_frac", ctypes.c_double),
-        # tv_sec is time_t in C
-        ("tv_sec", ctypes.c_int64),
-        ("tv_nsec", ctypes.c_long),
-    ]
 
 
 class Config(ctypes.Structure):
@@ -88,9 +36,10 @@ class Config(ctypes.Structure):
         ("track_success_pos_threshold", ctypes.c_double),
         ("tracking_lost_timeout", ctypes.c_double),
     ]
+    FRAME_ID = 0x19
 
 
-class MainTelemetry(ctypes.Structure):
+class Telemetry(ctypes.Structure):
     _pack_ = 1
     _fields_ = [
         ("biss_motor_encoder_axis_a", ctypes.c_uint),
@@ -105,12 +54,7 @@ class MainTelemetry(ctypes.Structure):
         ("actual_torque_axis_b", ctypes.c_short),
         ("copley_fault_status_register", ctypes.c_uint32 * 2),
         ("application_status", ctypes.c_uint),
-    ]
-
-
-class SimulinkTelemetry(ctypes.Structure):
-    _pack_ = 1
-    _fields_ = [
+        # simulink telemetry
         ("cmd_pos", ctypes.c_double),
         ("set_pos", ctypes.c_double),
         ("state", ctypes.c_double),
@@ -130,11 +74,4 @@ class SimulinkTelemetry(ctypes.Structure):
         ("state_estimation_ch_b_motor_encoder", ctypes.c_double),
         ("rotator_pos_deg", ctypes.c_double),
     ]
-
-
-class Telemetry(ctypes.Structure):
-    _pack_ = 1
-    _fields_ = [
-        ("main", MainTelemetry),
-        ("simulink", SimulinkTelemetry),
-    ]
+    FRAME_ID = 0x5
