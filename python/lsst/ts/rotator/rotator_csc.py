@@ -24,12 +24,9 @@ import pathlib
 
 from lsst.ts import salobj
 from lsst.ts import pymoog
+from . import constants
+from . import enums
 from . import structs
-
-
-MAX_ACCEL_LIMIT = 1.0  # Maximum acceleration limit (deg/sec^2)
-
-MAX_VEL_LIMIT = 3.5  # Maximum velocity limit (deg/sec)
 
 
 class RotatorCSC(salobj.ConfigurableCsc):
@@ -49,7 +46,7 @@ class RotatorCSC(salobj.ConfigurableCsc):
         self.config = None
         self.server = None
         self.commands = dict()
-        for cmd in structs.CommandCode:
+        for cmd in enums.CommandCode:
             command = structs.Command()
             command.cmd = cmd
             command.sync_pattern = structs.ROTATOR_SYNC_PATTERN
@@ -93,90 +90,125 @@ class RotatorCSC(salobj.ConfigurableCsc):
     # standard commnands
     async def do_enable(self, data):
         await super().do_enable(data)
-        await self.run_command(cmd=structs.CommandCode.SET_STATE,
-                               param1=structs.States.ENABLE)
+        await self.run_command(cmd=enums.CommandCode.SET_STATE,
+                               param1=enums.State.ENABLED)
 
     async def do_disable(self, data):
         await super().do_disable(data)
-        await self.run_command(cmd=structs.CommandCode.SET_STATE,
-                               param1=structs.States.DISABLE)
+        await self.run_command(cmd=enums.CommandCode.SET_STATE,
+                               param1=enums.State.DISABLED)
 
     async def do_standby(self, data):
+        if self.summary_state not in (salobj.State.DISABLED, salobj.State.FAULT):
+            raise salobj.ExpectedError("CSC must be in DISABLED or FAULT state to go to STANDBY")
+        if self.telemetry.state == enums.State.OFFLINE:
+            if self.telemetry.substate == enums.OfflineSubState.AVAILABLE:
+                await self.run_command(cmd=enums.CommandCode.SET_STATE,
+                                       param1=enums.State.ENTER_CONTROL)
+            else:
+                raise salobj.ExpectedError("Low-level controller is OFFLINE and not AVAILABLE; "
+                                           "use the engineering interface to make it AVAILABLE.")
+        elif self.telemetry.state == enums.State.FAULT:
+            raise salobj.ExpectedError("Low-level controller is in FAULT state; "
+                                       "Use clearError or the engineering interface to reset to OFFLINE, "
+                                       "then use the engineering interface to make it AVAILABLE.")
+        elif self.telemetry.state == enums.State.DISABLED:
+            await self.run_command(cmd=enums.CommandCode.SET_STATE,
+                                   param1=enums.State.STANDBY)
         await super().do_standby(data)
-        await self.run_command(cmd=structs.CommandCode.SET_STATE,
-                               param1=structs.States.STANDBY)
-
-    async def do_clearError(self, data):
-        """Execute the clearError command."""
-        self.assert_enabled("clearError")
-        # Two sequential commands are needed to clear error
-        await self.run_command(cmd=structs.CommandCode.SET_STATE,
-                               param1=structs.States.CLEAR_ERROR)
-        await self.sleep(0.9)
-        await self.run_command(cmd=structs.CommandCode.SET_STATE,
-                               param1=structs.States.CLEAR_ERROR)
-
-    async def do_configureAcceleration(self, data):
-        """Execute the configureAcceleration command."""
-        self.assert_enabled("configureAcceleration")
-        if abs(data.alimit) > MAX_VEL_LIMIT:
-            raise salobj.ExpectedError(f"abs(alimit={data.alimit}) must be <= {MAX_ACCEL_LIMIT}")
-        await self.run_command(cmd=structs.CommandCode.CONFIG_ACCEL,
-                               param1=data.alimit)
-
-    async def do_configureVelocity(self, data):
-        """Execute the configureVelocity command"""
-        self.assert_enabled("configureVelocity")
-        if abs(data.vlimit) > MAX_VEL_LIMIT:
-            raise salobj.ExpectedError(f"abs(vlimit={data.vlimit}) must be <= {MAX_VEL_LIMIT}")
-        await self.run_command(cmd=structs.CommandCode.CONFIG_VEL,
-                               param1=data.vlimit)
-
-    async def do_move(self, data):
-        """Execute the move command."""
-        self.assert_enabled("move")
-        await self.run_command(cmd=structs.CommandCode.SET_SUBSTATE,
-                               param1=structs.SubStates.MOVE_POINT_TO_POINT)
-
-    async def do_moveConstantVelocity(self, data):
-        """Execute the moveConstantVelocity command."""
-        self.assert_enabled("moveConstantVelocity")
-        await self.run_command(cmd=structs.CommandCode.SET_SUBSTATE,
-                               param1=structs.SubStates.CONST_VEL)
-
-    async def do_positionSet(self, data):
-        """Execute the positionSet command."""
-        self.assert_enabled("positionSet")
-        if not self.config.lower_pos_limit <= data.angle <= self.config.upper_pos_limit:
-            raise salobj.ExpectedError(f"angle {data.angle} not in range "
-                                       f"[{self.config.lower_pos_limit}, {self.config.upper_pos_limit}]")
-        await self.run_command(cmd=structs.CommandCode.POSITION_SET,
-                               param1=data.angle)
 
     async def do_start(self, data):
         """Execute the start command."""
-        self.assert_enabled("start")
-        await self.run_command(cmd=structs.CommandCode.SET_STATE,
+        if self.summary_state != salobj.State.STANDBY:
+            raise salobj.ExpectedError(f"CSC is in {self.summary_state}; must be STANDBY state to start")
+        if self.telemetry.state != enums.State.STANDBY:
+            raise salobj.ExpectedError(f"Low-level controller in {self.telemetry.state}; "
+                                       "must be in STANDBY to start")
+        super().do_start(data)
+        await self.run_command(cmd=enums.CommandCode.SET_STATE,
                                param1=structs.StateTriggers.START)
 
+    async def do_clearError(self, data):
+        """Reset the FAULT state.
+
+        Unfortunately this leaves the low-level controller in
+        OFFLINE/PUBLISH_ONLY state. You need the engineering interface to
+        make it OFFLINE/AVAILABLE before the CSC can control it.
+        """
+        # Two sequential commands are needed to clear error
+        await self.run_command(cmd=enums.CommandCode.SET_STATE,
+                               param1=enums.State.CLEAR_ERROR)
+        await self.sleep(0.9)
+        await self.run_command(cmd=enums.CommandCode.SET_STATE,
+                               param1=enums.State.CLEAR_ERROR)
+
+    async def do_configureAcceleration(self, data):
+        """Specify the acceleration limit."""
+        self.assert_enabled_substate(enums.EnabledSubstate.STATIONARY)
+        if not 0 < data.alimit <= constants.MAX_VEL_LIMIT:
+            raise salobj.ExpectedError(f"alimit={data.alimit} must be > 0 and <= {constants.MAX_ACCEL_LIMIT}")
+        await self.run_command(cmd=enums.CommandCode.CONFIG_ACCEL,
+                               param1=data.alimit)
+
+    async def do_configureVelocity(self, data):
+        """Specify the velocity limit."""
+        self.assert_enabled_substate(enums.EnabledSubstate.STATIONARY)
+        if not 0 < data.vlimit <= constants.MAX_VEL_LIMIT:
+            raise salobj.ExpectedError(f"vlimit={data.vlimit} must be > 0 and <= {constants.MAX_VEL_LIMIT}")
+        await self.run_command(cmd=enums.CommandCode.CONFIG_VEL,
+                               param1=data.vlimit)
+
+    async def do_move(self, data):
+        """Go to the position specified by the most recent ``positionSet``
+        command.
+        """
+        self.assert_enabled_substate(enums.EnabledSubstate.STATIONARY)
+        await self.run_command(cmd=enums.CommandCode.SET_SUBSTATE,
+                               param1=enums.EnabledSubstate.MOVE_POINT_TO_POINT)
+
+    async def do_moveConstantVelocity(self, data):
+        """Move at the speed and for the duration specified by the most recent
+        ``velocitySet`` command.
+        """
+        self.assert_enabled_substate(enums.EnabledSubstate.STATIONARY)
+        await self.run_command(cmd=enums.CommandCode.SET_SUBSTATE,
+                               param1=enums.EnabledSubstate.CONST_VEL)
+
+    async def do_positionSet(self, data):
+        """Specify a position for the ``move`` command.
+        """
+        self.assert_enabled_substate(enums.EnabledSubstate.STATIONARY)
+        if not self.config.lower_pos_limit <= data.angle <= self.config.upper_pos_limit:
+            raise salobj.ExpectedError(f"angle {data.angle} not in range "
+                                       f"[{self.config.lower_pos_limit}, {self.config.upper_pos_limit}]")
+        await self.run_command(cmd=enums.CommandCode.POSITION_SET,
+                               param1=data.angle)
+
     async def do_stop(self, data):
-        """Execute the stop command."""
+        """Halt tracking or any other motion.
+        """
         self.assert_enabled("stop")
-        await self.run_command(cmd=structs.CommandCode.SET_SUBSTATE,
-                               param1=structs.SubStates.STOP)
+        await self.run_command(cmd=enums.CommandCode.SET_SUBSTATE,
+                               param1=enums.EnabledSubstate.STOP)
 
     async def do_test(self, data):
-        """Execute the test command."""
-        self.assert_enabled("test")
+        """Execute the test command.
+
+        This may issue the Initialization command, which measures
+        backlash.
+        """
+        self.assert_enabled_substate(enums.EnabledSubstate.STATIONARY)
         # The test command is unique in that all fields must be left
         # at their initialized value except sync_pattern
+        # (at least that is what the Vendor's code does).
         command = structs.Command()
         command.sync_pattern = structs.ROTATOR_SYNC_PATTERN
         await self.server.run_command(command)
 
     async def do_track(self, data):
-        """Execute the track command."""
-        self.assert_enabled("track")
+        """Specify a position, velocity, TAI time tracking update.
+        """
+        self.assert_enabled_substate(enums.EnabledSubstate.TRACK)
         if abs(data.velocity) > self.config.velocity_limit:
             raise salobj.ExpectedError(f"Velocity {data.velocity} > limit {self.config.velocity_limit}")
         dt = salobj.current_tai() - data.tai
@@ -184,25 +216,42 @@ class RotatorCSC(salobj.ConfigurableCsc):
         if not self.config.lower_pos_limit <= curr_pos <= self.config.upper_pos_limit:
             raise salobj.ExpectedError(f"current position {curr_pos} not in range "
                                        f"[{self.config.lower_pos_limit}, {self.config.upper_pos_limit}]")
-        await self.run_command(cmd=structs.CommandCode.TRACK_VEL_CMD,
+        await self.run_command(cmd=enums.CommandCode.TRACK_VEL_CMD,
                                param1=data.tai,
                                param2=data.angle,
                                param3=data.velocity)
 
     async def do_trackStart(self, data):
-        """Execute the trackStart command."""
-        self.assert_enabled("trackStart")
-        await self.run_command(cmd=structs.CommandCode.SET_SUBSTATE,
-                               param1=structs.SubStates.TRACK)
+        """Start tracking.
+
+        Once this is run you must issue ``track`` commands at 10-20Hz
+        until you are done tracking, then issue the ``stop`` command.
+        """
+        self.assert_enabled_substate(enums.EnabledSubstate.STATIONARY)
+        await self.run_command(cmd=enums.CommandCode.SET_SUBSTATE,
+                               param1=enums.EnabledSubstate.TRACK)
 
     async def do_velocitySet(self, data):
-        """Execute the velocitySet command."""
-        self.assert_enabled("velocitySet")
+        """Specify the velocity and duration for the ``moveConstantVelocity``
+        command.
+        """
+        self.assert_enabled_substate(enums.EnabledSubstate.STATIONARY)
         if abs(data.velocity) > self.config.velocity_limit:
             raise salobj.ExpectedError(f"Velocity {data.velocity} > limit {self.config.velocity_limit}")
-        await self.run_command(cmd=structs.CommandCode.SET_CONSTANT_VEL,
+        await self.run_command(cmd=enums.CommandCode.SET_CONSTANT_VEL,
                                param1=data.velocity,
                                param2=data.moveDuration)
+
+    def assert_enabled_substate(self, substate):
+        """Assert the controller is enabled and in the specified substate.
+        """
+        if self.summary_state != salobj.State.ENABLED:
+            raise salobj.ExpectedError("CSC not enabled")
+        if self.telemetry.state != enums.State.Enabled:
+            raise salobj.ExpectedError("Low-level controller not enabled")
+        if self.telemetry.enabled_substate != substate:
+            raise salobj.ExpectedError(f"Low-level controller in substate {self.telemetry.enabled_substate} "
+                                       f"instead of {substate}")
 
     def configure_callback(self, config):
         """Called when the TCP/IP controller outputs configuration.
