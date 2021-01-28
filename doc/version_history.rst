@@ -6,6 +6,27 @@
 Version History
 ###############
 
+v0.12.0
+=======
+
+Changes:
+
+* Added the ``fault`` command, which requires ts_xml 7.2.
+* Updated to monitor camera cable wrap following error.
+
+    * Added configuration parameters ``max_ccw_following_error`` and ``num_ccw_following_errors``.
+    * Change `MTRotatorCsc` to refuse to go into the enabled state unless it is receiving telemetry from ``MTMount``.
+    * Change `MTRotatorCsc` to go from ENABLED to FAULT state if the camera cable wrap has too much following error.
+* Fix the Jenkins job: build the MTMount IDL file.
+
+Requires:
+* ts_hexrotcomm 0.14
+* ts_salobj 6.1
+* ts_simactuators 1
+* ts_idl 2.2
+* ts_xml 7.2
+* MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount``
+
 v0.11.0
 =======
 
