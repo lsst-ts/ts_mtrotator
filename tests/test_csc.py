@@ -326,10 +326,31 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
                 self.remote.evt_errorCode, code=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
             )
 
+    async def test_fault(self):
+        async with self.make_csc(initial_state=salobj.State.ENABLED):
+            await self.assert_next_summary_state(salobj.State.ENABLED)
+            await self.remote.cmd_fault.start(timeout=STD_TIMEOUT)
+            await self.assert_next_summary_state(salobj.State.FAULT)
+
+            # Make sure the fault command only works in enabled state
+            with salobj.assertRaisesAckError():
+                await self.remote.cmd_fault.start(timeout=STD_TIMEOUT)
+
+            await self.remote.cmd_clearError.start(timeout=STD_TIMEOUT)
+            await self.assert_next_summary_state(salobj.State.STANDBY)
+            with salobj.assertRaisesAckError():
+                await self.remote.cmd_fault.start(timeout=STD_TIMEOUT)
+
+            await self.remote.cmd_start.start(timeout=STD_TIMEOUT)
+            await self.assert_next_summary_state(salobj.State.DISABLED)
+            with salobj.assertRaisesAckError():
+                await self.remote.cmd_fault.start(timeout=STD_TIMEOUT)
+
     async def test_standard_state_transitions(self):
         enabled_commands = (
             "configureVelocity",
             "configureAcceleration",
+            "fault",
             "move",
             "stop",
             "trackStart",
