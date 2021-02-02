@@ -233,8 +233,27 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
         ):
             with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED):
                 await self.remote.cmd_enable.start(timeout=STD_TIMEOUT)
-            # TODO: update this to FAULT
             await self.assert_next_summary_state(salobj.State.DISABLED)
+
+    async def test_missing_ccw_telemetry(self):
+        """Test that the CSC will fault if camera cable wrap telemetry
+        disappears.
+        """
+        async with self.make_csc(initial_state=salobj.State.ENABLED):
+            await self.assert_next_summary_state(salobj.State.ENABLED)
+
+            # Wait a bit; the CSC should still be enabled.
+            # Wait for a few rotator telemetry messages,
+            # which in turn trigger CCW telemetry.
+            delay = self.csc.mock_ctrl.telemetry_interval * 5
+            await asyncio.sleep(delay)
+            self.assertEqual(self.csc.summary_state, salobj.State.ENABLED)
+
+            # Stop the telemetry. The CSC should go to FAULT
+            self.mock_ccw_task.cancel()
+            await self.assert_next_summary_state(
+                salobj.State.FAULT, timeout=STD_TIMEOUT
+            )
 
     async def test_excessive_ccw_following_error(self):
         async with self.make_csc(initial_state=salobj.State.ENABLED):
@@ -250,13 +269,17 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
             # Specify excessive positive following error;
             # the CSC should shortly be disabled.
             self.ccw_following_error = self.csc.config.max_ccw_following_error + 0.1
-            # TODO: update this to FAULT
             await self.assert_next_summary_state(
-                salobj.State.DISABLED, timeout=STD_TIMEOUT
+                salobj.State.FAULT, timeout=STD_TIMEOUT
+            )
+            self.assert_next_sample(
+                self.remote.evt_errorCode, code=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
             )
 
             # Zero the following error and re-enable the CSC.
             self.ccw_following_error = 0
+            await self.remote.cmd_clearError.start(timeout=STD_TIMEOUT)
+            await self.assert_next_summary_state(salobj.State.STANDBY)
             states = await salobj.set_summary_state(
                 self.remote, state=salobj.State.ENABLED
             )
@@ -271,7 +294,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
             # the CSC should shortly be disabled.
             self.ccw_following_error = -(self.csc.config.max_ccw_following_error + 0.1)
             await self.assert_next_summary_state(
-                salobj.State.DISABLED, timeout=STD_TIMEOUT
+                salobj.State.FAULT, timeout=STD_TIMEOUT
+            )
+            self.assert_next_sample(
+                self.remote.evt_errorCode, code=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
             )
 
     async def test_transient_excessive_ccw_following_error(self):
@@ -294,7 +320,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
                 self.csc.config.max_ccw_following_error + 0.1
             )
             await self.assert_next_summary_state(
-                salobj.State.DISABLED, timeout=STD_TIMEOUT
+                salobj.State.FAULT, timeout=STD_TIMEOUT
+            )
+            self.assert_next_sample(
+                self.remote.evt_errorCode, code=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
             )
 
     async def test_standard_state_transitions(self):
