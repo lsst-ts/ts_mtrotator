@@ -144,7 +144,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
 
         """
         # We cannot transition the CSC to ENABLED
-        # until the CCW folloing loop is running.
+        # until the CCW following loop is running.
         # So if initial_state is ENABLED
         # start the CSC in DISABLED, start the CCW following loop,
         # then transition to ENABLED and swallow the DISABLED state
@@ -254,6 +254,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
             await self.assert_next_summary_state(
                 salobj.State.FAULT, timeout=STD_TIMEOUT
             )
+            await self.assert_next_sample(
+                self.remote.evt_errorCode,
+                errorCode=mtrotator.ErrorCode.CCW_NO_TELEMETRY,
+            )
 
     async def test_excessive_ccw_following_error(self):
         async with self.make_csc(initial_state=salobj.State.ENABLED):
@@ -272,8 +276,9 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
             await self.assert_next_summary_state(
                 salobj.State.FAULT, timeout=STD_TIMEOUT
             )
-            self.assert_next_sample(
-                self.remote.evt_errorCode, code=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
+            await self.assert_next_sample(
+                self.remote.evt_errorCode,
+                errorCode=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
             )
 
             # Zero the following error and re-enable the CSC.
@@ -296,8 +301,9 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
             await self.assert_next_summary_state(
                 salobj.State.FAULT, timeout=STD_TIMEOUT
             )
-            self.assert_next_sample(
-                self.remote.evt_errorCode, code=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
+            await self.assert_next_sample(
+                self.remote.evt_errorCode,
+                errorCode=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
             )
 
     async def test_transient_excessive_ccw_following_error(self):
@@ -322,8 +328,9 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
             await self.assert_next_summary_state(
                 salobj.State.FAULT, timeout=STD_TIMEOUT
             )
-            self.assert_next_sample(
-                self.remote.evt_errorCode, code=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
+            await self.assert_next_sample(
+                self.remote.evt_errorCode,
+                errorCode=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
             )
 
     async def test_fault(self):
@@ -331,6 +338,9 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
             await self.assert_next_summary_state(salobj.State.ENABLED)
             await self.remote.cmd_fault.start(timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.FAULT)
+            await self.assert_next_sample(
+                self.remote.evt_errorCode, errorCode=mtrotator.ErrorCode.FAULT_COMMAND,
+            )
 
             # Make sure the fault command only works in enabled state
             with salobj.assertRaisesAckError():
@@ -660,10 +670,12 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.SLEWING_OR_TRACKING,
             )
+
             # Send a tracking position
             await self.remote.cmd_track.set_start(
                 angle=0, velocity=0, tai=salobj.current_tai(), timeout=STD_TIMEOUT
             )
+
             # Wait a bit longer than usual to allow the tracking timer
             # to expire.
             await self.assert_next_summary_state(
@@ -708,12 +720,14 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
             )
             self.assertFalse(data.inPosition)
             await self.remote.cmd_trackStart.start(timeout=STD_TIMEOUT)
+
             # Immediately send a track commands (not giving the CSC time to see
             # the changed controller state), as explained in the doc string.
             curr_tai = salobj.current_tai()
             await self.remote.cmd_track.set_start(
                 angle=0, velocity=0, tai=curr_tai, timeout=STD_TIMEOUT
             )
+
             # Now make sure the trackStart command did send the controller
             # into the state SLEWING_OR_TRACKING
             await self.assert_next_sample(
