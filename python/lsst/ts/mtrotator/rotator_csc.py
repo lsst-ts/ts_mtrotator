@@ -329,21 +329,13 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
     async def fault(self, code, report, traceback=""):
         if self._faulting:
+            self.log.debug("Fault called, but already faulting")
             return
 
+        self.log.debug("Sending the low-level controller to fault state")
         try:
             self._faulting = True
-            # TODO: Te-Wei is adding a command for this; for now just stop
-            # the rotator and go to DISABLED state
-            await self.run_command(
-                code=enums.CommandCode.SET_ENABLED_SUBSTATE,
-                param1=enums.SetEnabledSubstateParam.STOP,
-            )
-            if self.summary_state == salobj.State.ENABLED:
-                await self.run_command(
-                    code=self.CommandCode.SET_STATE,
-                    param1=hexrotcomm.SetStateParam.DISABLE,
-                )
+            await self.run_command(code=enums.CommandCode.FAULT,)
             try:
                 self.evt_errorCode.set_put(
                     errorCode=code,
