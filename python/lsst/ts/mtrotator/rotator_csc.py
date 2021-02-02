@@ -69,6 +69,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     * 1: invalid data read on the telemetry socket
     * 2: camera cable wrap not following closely enough
     * 3: camera cable wrap telemetry not available
+    * 4: the fault command
 
     This CSC is unusual in several respect:
 
@@ -232,6 +233,11 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         await super().do_enable(data)
 
+    async def do_fault(self, data):
+        if self.summary_state != salobj.State.ENABLED:
+            raise salobj.ExpectedError("Not enabled")
+        await self.fault(code=4, report="fault command")
+
     async def do_move(self, data):
         """Go to the position specified by the most recent ``positionSet``
         command.
@@ -335,7 +341,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         self.log.debug("Sending the low-level controller to fault state")
         try:
             self._faulting = True
-            await self.run_command(code=enums.CommandCode.FAULT,)
+            await self.run_command(code=enums.CommandCode.FAULT)
             try:
                 self.evt_errorCode.set_put(
                     errorCode=code,
