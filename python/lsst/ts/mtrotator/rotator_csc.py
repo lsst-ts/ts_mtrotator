@@ -34,7 +34,7 @@ from . import mock_controller
 
 # Maximum allowed age of the camera cable wrap telemetry data
 # when checking following error.
-MAX_CAMERA_CABLE_WRAP_TELEMETRY_AGE = 1
+MAX_CCW_TELEMETRY_AGE = 1
 
 
 class RotatorCsc(hexrotcomm.BaseCsc):
@@ -66,10 +66,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     -----
     **Error Codes**
 
-    * 1: invalid data read on the telemetry socket
-    * 2: camera cable wrap not following closely enough
-    * 3: camera cable wrap telemetry not available
-    * 4: the fault command
+    The error codes are described in `ErrorCode`.
 
     This CSC is unusual in several respect:
 
@@ -142,14 +139,17 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             ccw_data = self.mtmount_remote.tel_cameraCableWrap.get()
             if ccw_data is None:
                 # We should get data because we check for this in do_enable.
-                await self.fault(code=3, report="Bug: no camera cable wrap telemetry")
+                await self.fault(
+                    code=enums.ErrorCode.CCW_NO_TELEMETRY,
+                    report="Bug: no camera cable wrap telemetry",
+                )
                 return
             dt = rot_tai - ccw_data.timestamp
-            if abs(dt) > MAX_CAMERA_CABLE_WRAP_TELEMETRY_AGE:
+            if abs(dt) > MAX_CCW_TELEMETRY_AGE:
                 await self.fault(
-                    code=3,
+                    code=enums.ErrorCode.CCW_NO_TELEMETRY,
                     report="Camera cable wrap telemetry is too old: "
-                    f"dt={dt}; abs(dt) > {MAX_CAMERA_CABLE_WRAP_TELEMETRY_AGE}",
+                    f"dt={dt}; abs(dt) > {MAX_CCW_TELEMETRY_AGE}",
                 )
                 return
 
@@ -164,7 +164,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             self._num_ccw_following_errors += 1
             if self._num_ccw_following_errors >= self.config.num_ccw_following_errors:
                 await self.fault(
-                    code=2,
+                    code=enums.ErrorCode.CCW_FOLLOWING_ERROR,
                     report=f"Camera cable wrap not following closely enough: "
                     f"error # {self._num_ccw_following_errors} = {following_error} "
                     f"> {self.config.max_ccw_following_error} deg",
@@ -224,7 +224,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # and that it is recent enough to use for measuring following error.
         try:
             await self.mtmount_remote.tel_cameraCableWrap.next(
-                flush=False, timeout=MAX_CAMERA_CABLE_WRAP_TELEMETRY_AGE * 10
+                flush=False, timeout=MAX_CCW_TELEMETRY_AGE * 10
             )
         except asyncio.TimeoutError:
             raise salobj.ExpectedError(
@@ -236,7 +236,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     async def do_fault(self, data):
         if self.summary_state != salobj.State.ENABLED:
             raise salobj.ExpectedError("Not enabled")
-        await self.fault(code=4, report="fault command")
+        await self.fault(code=enums.ErrorCode.FAULT_COMMAND, report="fault command")
 
     async def do_move(self, data):
         """Go to the position specified by the most recent ``positionSet``

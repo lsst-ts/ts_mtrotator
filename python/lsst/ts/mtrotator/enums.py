@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["CommandCode", "SetEnabledSubstateParam"]
+__all__ = ["CommandCode", "ErrorCode", "SetEnabledSubstateParam"]
 
 import enum
 
@@ -40,6 +40,23 @@ class CommandCode(enum.IntEnum):
     CONFIG_VEL = 0x9001
     CONFIG_ACCEL = 0x9002
     TRACK_VEL_CMD = 0x9031
+
+
+class ErrorCode(enum.IntEnum):
+    """`MTRotatorCsc` error codes.
+    """
+
+    COMMUNICATION_ERROR = 1
+    """Error communicating with the low-level controller."""
+
+    CCW_FOLLOWING_ERROR = enum.auto()
+    """The camera cable wrap angle is too far from the rotator angle."""
+
+    CCW_NO_TELEMETRY = enum.auto()
+    """Camera cable wrap telemetry not seen."""
+
+    FAULT_COMMAND = enum.auto()
+    """The fault command was issued."""
 
 
 class SetEnabledSubstateParam(enum.IntEnum):
