@@ -139,6 +139,7 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
                 enums.CommandCode.SET_ENABLED_SUBSTATE,
                 enums.SetEnabledSubstateParam.CONSTANT_VELOCITY,
             ): self.do_constant_velocity,
+            enums.CommandCode.FAULT: self.do_fault,
             enums.CommandCode.POSITION_SET: self.do_position_set,
             enums.CommandCode.SET_CONSTANT_VEL: self.do_set_constant_vel,
             enums.CommandCode.CONFIG_VEL: self.do_config_vel,
@@ -198,6 +199,9 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
     async def do_constant_velocity(self, command):
         raise RuntimeError("The mock controller does not support CONSTANT_VELOCITY")
 
+    async def do_fault(self, command):
+        self.set_state(ControllerState.FAULT)
+
     async def do_position_set(self, command):
         self.assert_stationary()
         self.telemetry.set_pos = command.param1
@@ -241,6 +245,12 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         self.tracking_timer_task.cancel()
         self.tracking_timer_task = asyncio.create_task(self.tracking_timer())
         self.track_vel_cmd_seen = True
+
+    def set_state(self, state):
+        # Override to stop the rotator if not enabled
+        super().set_state(state)
+        if state != ControllerState.ENABLED:
+            self.rotator.stop()
 
     async def tracking_timer(self):
         """If this times out then go into a FAULT state.
