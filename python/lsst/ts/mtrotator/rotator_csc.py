@@ -139,14 +139,14 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             ccw_data = self.mtmount_remote.tel_cameraCableWrap.get()
             if ccw_data is None:
                 # We should get data because we check for this in do_enable.
-                await self.fault(
+                await self.afault(
                     code=enums.ErrorCode.CCW_NO_TELEMETRY,
                     report="Bug: no camera cable wrap telemetry",
                 )
                 return
             dt = rot_tai - ccw_data.timestamp
             if abs(dt) > MAX_CCW_TELEMETRY_AGE:
-                await self.fault(
+                await self.afault(
                     code=enums.ErrorCode.CCW_NO_TELEMETRY,
                     report="Camera cable wrap telemetry is too old: "
                     f"dt={dt}; abs(dt) > {MAX_CCW_TELEMETRY_AGE}",
@@ -163,7 +163,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
             self._num_ccw_following_errors += 1
             if self._num_ccw_following_errors >= self.config.num_ccw_following_errors:
-                await self.fault(
+                await self.afault(
                     code=enums.ErrorCode.CCW_FOLLOWING_ERROR,
                     report=f"Camera cable wrap not following closely enough: "
                     f"error # {self._num_ccw_following_errors} = {following_error} "
@@ -236,7 +236,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     async def do_fault(self, data):
         if self.summary_state != salobj.State.ENABLED:
             raise salobj.ExpectedError("Not enabled")
-        await self.fault(code=enums.ErrorCode.FAULT_COMMAND, report="fault command")
+        await self.afault(code=enums.ErrorCode.FAULT_COMMAND, report="fault command")
 
     async def do_move(self, data):
         """Go to the position specified by the most recent ``positionSet``
@@ -333,7 +333,26 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         )
         self._tracking_started_telemetry_counter = 2
 
-    async def fault(self, code, report, traceback=""):
+    async def afault(self, code, report, traceback=""):
+        """Enter the fault state and output the ``errorCode`` event.
+
+        This is an asynchronous version of the standard fault method
+        `lsst.ts.salobj.BaseCsc.fault`. Note that the standard version
+        does not work for MTRotator (and raises `NotImplementedError`)
+        because the summary state is kept in the low-level controller.
+
+        Parameters
+        ----------
+        code : `int`
+            Error code for the ``errorCode`` event.
+            If `None` then ``errorCode`` is not output and you should
+            output it yourself. Specifying `None` is deprecated;
+            please always specify an integer error code.
+        report : `str`
+            Description of the error.
+        traceback : `str`, optional
+            Description of the traceback, if any.
+        """
         if self._faulting:
             self.log.debug("Fault called, but already faulting")
             return
@@ -342,19 +361,20 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         try:
             self._faulting = True
             await self.run_command(code=enums.CommandCode.FAULT)
-            try:
-                self.evt_errorCode.set_put(
-                    errorCode=code,
-                    errorReport=report,
-                    traceback=traceback,
-                    force_output=True,
-                )
-            except Exception:
-                self.log.exception(
-                    f"Failed to output errorCode: code={code!r}; report={report!r}"
-                )
         finally:
             self._faulting = False
+
+        try:
+            self.evt_errorCode.set_put(
+                errorCode=code,
+                errorReport=report,
+                traceback=traceback,
+                force_output=True,
+            )
+        except Exception:
+            self.log.exception(
+                f"Failed to output errorCode: code={code!r}; report={report!r}"
+            )
 
     def telemetry_callback(self, server):
         """Called when the TCP/IP controller outputs telemetry.
