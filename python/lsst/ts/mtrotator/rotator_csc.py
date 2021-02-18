@@ -27,6 +27,7 @@ import pathlib
 from lsst.ts import salobj
 from lsst.ts import hexrotcomm
 from lsst.ts.idl.enums.MTRotator import EnabledSubstate, ApplicationStatus
+from . import __version__
 from . import constants
 from . import enums
 from . import structs
@@ -78,6 +79,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     """
 
     valid_simulation_modes = [0, 1]
+    version = __version__
 
     def __init__(
         self, config_dir=None, initial_state=salobj.State.OFFLINE, simulation_mode=0

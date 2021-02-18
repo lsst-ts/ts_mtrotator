@@ -335,6 +335,11 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
 
     async def test_fault(self):
         async with self.make_csc(initial_state=salobj.State.ENABLED):
+            await self.assert_next_sample(
+                topic=self.remote.evt_softwareVersions,
+                cscVersion=mtrotator.__version__,
+                subsystemVersions="",
+            )
             await self.assert_next_summary_state(salobj.State.ENABLED)
             await self.remote.cmd_fault.start(timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.FAULT)

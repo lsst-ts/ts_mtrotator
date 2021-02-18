@@ -17,7 +17,8 @@ Changes:
     * Added configuration parameters ``max_ccw_following_error`` and ``num_ccw_following_errors``.
     * Change `MTRotatorCsc` to refuse to go into the enabled state unless it is receiving telemetry from ``MTMount``.
     * Change `MTRotatorCsc` to go from ENABLED to FAULT state if the camera cable wrap has too much following error.
-* Fix the Jenkins job: build the MTMount IDL file.
+* `MTRotatorCsc`: set class variable ``version``, which sets the ``cscVersion`` field of the ``softwareVersions`` event.
+* Fix the Jenkins job: build the ``MTMount`` IDL file.
 
 Requires:
 * ts_hexrotcomm 0.14
