@@ -19,6 +19,7 @@ Changes:
     * Change `MTRotatorCsc` to go from ENABLED to FAULT state if the camera cable wrap has too much following error.
 * `MTRotatorCsc`: set class variable ``version``, which sets the ``cscVersion`` field of the ``softwareVersions`` event.
 * Fix the Jenkins job: build the ``MTMount`` IDL file.
+* Modernize ``doc/conf.py`` for documenteer 0.6.
 
 Requires:
 * ts_hexrotcomm 0.14
