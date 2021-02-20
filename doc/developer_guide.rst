@@ -19,7 +19,6 @@ The primary class is:
 
 .. automodapi:: lsst.ts.mtrotator
    :no-main-docstr:
-   :no-inheritance-diagram:
 
 Build and Test
 ==============
