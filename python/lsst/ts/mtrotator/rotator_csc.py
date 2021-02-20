@@ -21,15 +21,21 @@
 
 __all__ = ["RotatorCsc"]
 
+import asyncio
 import pathlib
 
 from lsst.ts import salobj
 from lsst.ts import hexrotcomm
 from lsst.ts.idl.enums.MTRotator import EnabledSubstate, ApplicationStatus
+from . import __version__
 from . import constants
 from . import enums
 from . import structs
 from . import mock_controller
+
+# Maximum allowed age of the camera cable wrap telemetry data
+# when checking following error.
+MAX_CCW_TELEMETRY_AGE = 1
 
 
 class RotatorCsc(hexrotcomm.BaseCsc):
@@ -61,7 +67,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     -----
     **Error Codes**
 
-    * 1: invalid data read on the telemetry socket
+    The error codes are described in `ErrorCode`.
 
     This CSC is unusual in several respect:
 
@@ -73,18 +79,27 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     """
 
     valid_simulation_modes = [0, 1]
+    version = __version__
 
     def __init__(
         self, config_dir=None, initial_state=salobj.State.OFFLINE, simulation_mode=0
     ):
         self.server = None
         self.mock_ctrl = None
+
         # Set this to 2 when trackStart is called, then decrement
         # when telemetry is received. If > 0 or enabled_substate is
         # SLEWING_OR_TRACKING then allow the track command.
         # This solves the problem of allowing the track command
         # immediately after the trackStart, before telemetry is received.
         self._tracking_started_telemetry_counter = 0
+
+        # The sequential number of times the camera cable wrap following error
+        # has been too large.
+        self._num_ccw_following_errors = 0
+
+        self._checking_ccw_following_error = False
+        self._faulting = False
         self._prev_flags_tracking_success = False
         self._prev_flags_tracking_lost = False
 
@@ -104,13 +119,87 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             initial_state=initial_state,
             simulation_mode=simulation_mode,
         )
+        self.mtmount_remote = salobj.Remote(domain=self.domain, name="MTMount")
 
     async def start(self):
+        await self.mtmount_remote.start_task
         self.evt_inPosition.set_put(inPosition=False, force_output=True)
         await super().start()
 
+    async def check_ccw_following_error(self):
+        """Check the camera cable wrap following error and FAULT if too large.
+        """
+        # Avoid an accumulation of these coroutines running at the same time.
+        if self._checking_ccw_following_error:
+            return
+
+        try:
+            rot_data = self.tel_rotation.data
+            rot_tai = rot_data.timestamp
+
+            # Get camera cable wrap telemetry and check its age.
+            ccw_data = self.mtmount_remote.tel_cameraCableWrap.get()
+            if ccw_data is None:
+                # We should get data because we check for this in do_enable.
+                await self.afault(
+                    code=enums.ErrorCode.CCW_NO_TELEMETRY,
+                    report="Bug: no camera cable wrap telemetry",
+                )
+                return
+            dt = rot_tai - ccw_data.timestamp
+            if abs(dt) > MAX_CCW_TELEMETRY_AGE:
+                await self.afault(
+                    code=enums.ErrorCode.CCW_NO_TELEMETRY,
+                    report="Camera cable wrap telemetry is too old: "
+                    f"dt={dt}; abs(dt) > {MAX_CCW_TELEMETRY_AGE}",
+                )
+                return
+
+            # Check the following error.
+            corr_ccw_pos = ccw_data.actualPosition + ccw_data.actualVelocity * dt
+            following_error = rot_data.actualPosition - corr_ccw_pos
+            if abs(following_error) <= self.config.max_ccw_following_error:
+                # The following error is acceptable.
+                self._num_ccw_following_errors = 0
+                return
+
+            self._num_ccw_following_errors += 1
+            if self._num_ccw_following_errors >= self.config.num_ccw_following_errors:
+                await self.afault(
+                    code=enums.ErrorCode.CCW_FOLLOWING_ERROR,
+                    report=f"Camera cable wrap not following closely enough: "
+                    f"error # {self._num_ccw_following_errors} = {following_error} "
+                    f"> {self.config.max_ccw_following_error} deg",
+                )
+        finally:
+            self._checking_ccw_following_error = False
+
     async def configure(self, config):
-        pass
+        self.config = config
+
+    def config_callback(self, server):
+        """Called when the TCP/IP controller outputs configuration.
+
+        Parameters
+        ----------
+        server : `lsst.ts.hexrotcomm.CommandTelemetryServer`
+            TCP/IP server.
+        """
+        self.evt_configuration.set_put(
+            positionAngleUpperLimit=server.config.upper_pos_limit,
+            velocityLimit=server.config.velocity_limit,
+            accelerationLimit=server.config.accel_limit,
+            positionAngleLowerLimit=server.config.lower_pos_limit,
+            followingErrorThreshold=server.config.following_error_threshold,
+            trackingSuccessPositionThreshold=server.config.track_success_pos_threshold,
+            trackingLostTimeout=server.config.tracking_lost_timeout,
+        )
+
+    def connect_callback(self, server):
+        super().connect_callback(server)
+        # Always reset this counter; if newly connected then we'll start
+        # accumulating the count and otherwise it makes no difference.
+        self._num_ccw_following_errors = 0
 
     async def do_configureAcceleration(self, data):
         """Specify the acceleration limit."""
@@ -129,6 +218,27 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 f"vlimit={data.vlimit} must be > 0 and <= {constants.MAX_VEL_LIMIT}"
             )
         await self.run_command(code=enums.CommandCode.CONFIG_VEL, param1=data.vlimit)
+
+    async def do_enable(self, data):
+        self.assert_summary_state(salobj.State.DISABLED, isbefore=True)
+
+        # Make sure we have camera cable wrap telemetry (from MTMount),
+        # and that it is recent enough to use for measuring following error.
+        try:
+            await self.mtmount_remote.tel_cameraCableWrap.next(
+                flush=False, timeout=MAX_CCW_TELEMETRY_AGE * 10
+            )
+        except asyncio.TimeoutError:
+            raise salobj.ExpectedError(
+                "Cannot enable the rotator until it receives camera cable wrap telemetry"
+            )
+
+        await super().do_enable(data)
+
+    async def do_fault(self, data):
+        if self.summary_state != salobj.State.ENABLED:
+            raise salobj.ExpectedError("Not enabled")
+        await self.afault(code=enums.ErrorCode.FAULT_COMMAND, report="fault command")
 
     async def do_move(self, data):
         """Go to the position specified by the most recent ``positionSet``
@@ -225,23 +335,48 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         )
         self._tracking_started_telemetry_counter = 2
 
-    def config_callback(self, server):
-        """Called when the TCP/IP controller outputs configuration.
+    async def afault(self, code, report, traceback=""):
+        """Enter the fault state and output the ``errorCode`` event.
+
+        This is an asynchronous version of the standard fault method
+        `lsst.ts.salobj.BaseCsc.fault`. Note that the standard version
+        does not work for MTRotator (and raises `NotImplementedError`)
+        because the summary state is kept in the low-level controller.
 
         Parameters
         ----------
-        server : `lsst.ts.hexrotcomm.CommandTelemetryServer`
-            TCP/IP server.
+        code : `int`
+            Error code for the ``errorCode`` event.
+            If `None` then ``errorCode`` is not output and you should
+            output it yourself. Specifying `None` is deprecated;
+            please always specify an integer error code.
+        report : `str`
+            Description of the error.
+        traceback : `str`, optional
+            Description of the traceback, if any.
         """
-        self.evt_configuration.set_put(
-            positionAngleUpperLimit=server.config.upper_pos_limit,
-            velocityLimit=server.config.velocity_limit,
-            accelerationLimit=server.config.accel_limit,
-            positionAngleLowerLimit=server.config.lower_pos_limit,
-            followingErrorThreshold=server.config.following_error_threshold,
-            trackingSuccessPositionThreshold=server.config.track_success_pos_threshold,
-            trackingLostTimeout=server.config.tracking_lost_timeout,
-        )
+        if self._faulting:
+            self.log.debug("Fault called, but already faulting")
+            return
+
+        self.log.debug("Sending the low-level controller to fault state")
+        try:
+            self._faulting = True
+            await self.run_command(code=enums.CommandCode.FAULT)
+        finally:
+            self._faulting = False
+
+        try:
+            self.evt_errorCode.set_put(
+                errorCode=code,
+                errorReport=report,
+                traceback=traceback,
+                force_output=True,
+            )
+        except Exception:
+            self.log.exception(
+                f"Failed to output errorCode: code={code!r}; report={report!r}"
+            )
 
     def telemetry_callback(self, server):
         """Called when the TCP/IP controller outputs telemetry.
@@ -332,6 +467,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         self.evt_interlock.set_put(
             detail="Engaged" if safety_interlock else "Disengaged",
         )
+
+        if self.summary_state == salobj.State.ENABLED:
+            asyncio.create_task(self.check_ccw_following_error())
 
     def make_mock_controller(self, initial_ctrl_state):
         return mock_controller.MockMTRotatorController(
