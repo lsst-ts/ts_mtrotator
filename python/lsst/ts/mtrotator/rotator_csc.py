@@ -22,12 +22,12 @@
 __all__ = ["RotatorCsc"]
 
 import asyncio
-import pathlib
 
 from lsst.ts import salobj
 from lsst.ts import hexrotcomm
 from lsst.ts.idl.enums.MTRotator import EnabledSubstate, ApplicationStatus
 from . import __version__
+from .config_schema import CONFIG_SCHEMA
 from . import constants
 from . import enums
 from . import structs
@@ -103,9 +103,6 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         self._prev_flags_tracking_success = False
         self._prev_flags_tracking_lost = False
 
-        schema_path = (
-            pathlib.Path(__file__).parents[4].joinpath("schema", "MTRotator.yaml")
-        )
         super().__init__(
             name="MTRotator",
             index=0,
@@ -114,8 +111,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             CommandCode=enums.CommandCode,
             ConfigClass=structs.Config,
             TelemetryClass=structs.Telemetry,
-            schema_path=schema_path,
             config_dir=config_dir,
+            config_schema=CONFIG_SCHEMA,
             initial_state=initial_state,
             simulation_mode=simulation_mode,
         )

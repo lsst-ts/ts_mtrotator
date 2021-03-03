@@ -1,4 +1,4 @@
-from setuptools import setup, find_namespace_packages
+import setuptools
 
 install_requires = []
 tests_require = ["pytest", "pytest-cov", "pytest-flake8", "asynctest"]
@@ -9,7 +9,7 @@ __all__ = ["__version__"]
 __version__ = "{version}"
 """
 
-setup(
+setuptools.setup(
     name="ts_mtrotator",
     description="CSC for main telescope camera rotator",
     use_scm_version={
@@ -19,7 +19,7 @@ setup(
     setup_requires=["setuptools_scm", "pytest-runner"],
     install_requires=install_requires,
     package_dir={"": "python"},
-    packages=find_namespace_packages(where="python"),
+    packages=setuptools.find_namespace_packages(where="python"),
     package_data={"": ["*.rst", "*.yaml"]},
     scripts=[
         "bin/run_mtrotator.py",
