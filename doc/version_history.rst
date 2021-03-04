@@ -6,8 +6,26 @@
 Version History
 ###############
 
+v0.13.0
+-------
+
+Changes:
+
+* `RotatorCsc`: save the configuration schema in code instead of a separate .yaml file.
+  This requires ts_salobj 6.3 and ts_hexrotcomm 0.16.
+* Delete obsolete file ``schema/MTRotator.yaml``.
+* Users's Guide: improve the information for switching from GUI to DDS mode.
+
+Requires:
+* ts_hexrotcomm 0.16
+* ts_salobj 6.3
+* ts_simactuators 1
+* ts_idl 2.2
+* ts_xml 7.2
+* MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount``
+
 v0.12.0
-=======
+-------
 
 Changes:
 
@@ -30,7 +48,7 @@ Requires:
 * MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount``
 
 v0.11.0
-=======
+-------
 
 Changes:
 
@@ -47,7 +65,7 @@ Requires:
 * MTRotator IDL files, e.g. made using ``make_idl_files.py MTRotator``
 
 v0.10.3
-=======
+-------
 
 Changes:
 
@@ -62,7 +80,7 @@ Requires:
 * MTRotator IDL files, e.g. made using ``make_idl_files.py MTRotator``
 
 v0.10.2
-=======
+-------
 
 Changes:
 
@@ -78,7 +96,7 @@ Requires:
 * MTRotator IDL files, e.g. made using ``make_idl_files.py MTRotator``
 
 v0.10.1
-=======
+-------
 
 Changes:
 
@@ -94,7 +112,7 @@ Requires:
 * MTRotator IDL files, e.g. made using ``make_idl_files.py MTRotator``
 
 v0.10.0
-=======
+-------
 
 Changes:
 
@@ -121,7 +139,7 @@ Requires:
 * MTRotator IDL files, e.g. made using ``make_idl_files.py MTRotator``
 
 v0.9.0
-======
+------
 
 Changes:
 
@@ -142,7 +160,7 @@ Requires:
 * MTRotator IDL files, e.g. made using ``make_idl_files.py MTRotator``
 
 v0.8.0
-======
+------
 
 Changes:
 
@@ -162,7 +180,7 @@ Requires:
 * Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
 
 v0.7.3
-======
+------
 
 Changes:
 
@@ -179,7 +197,7 @@ Requires:
 
 
 v0.7.2
-======
+------
 
 Changes:
 
@@ -195,7 +213,7 @@ Requires:
 * Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
 
 v0.7.1
-======
+------
 
 Changes:
 
@@ -212,7 +230,7 @@ Requires:
 
 
 v0.7.0
-======
+------
 
 Changes:
 
@@ -234,7 +252,7 @@ Requires:
 * Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
 
 v0.6.0
-======
+------
 
 Changes:
 
@@ -253,7 +271,7 @@ Requires:
 * Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
 
 v0.5.0
-======
+------
 
 Changes:
 
@@ -269,7 +287,7 @@ Requires:
 * Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
 
 v0.4.4
-======
+------
 
 Changes:
 
@@ -287,7 +305,7 @@ Requires:
 * Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
 
 v0.4.3
-======
+------
 
 * Fix flake8 violations.
 * Improve Jenkins.conda build script so it will label PRs and branches packages as dev and upload them to anaconda.
@@ -302,7 +320,7 @@ Requires:
 * Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
 
 v0.4.2
-======
+------
 
 * Fix flake8 violations.
 * Add Jenkinsfile for CI job.
@@ -317,7 +335,7 @@ Requires:
 * Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
 
 v0.4.1
-======
+------
 
 * Include conda package build configuration.
 * Added a Jenkinsfile to support continuous integration and to build conda packages.
@@ -333,7 +351,7 @@ Requires:
 * Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
 
 v0.4.0
-======
+------
 
 Update `MockMTRotatorController` to use the ``TrackingActuator`` from ts_simactuators.
 Formerly `MockMTRotatorController` used a locally defined point to point actuator, which gives somewhat lower fidelity and duplicates code in ts_simactuators.
@@ -348,7 +366,7 @@ Requires:
 * Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
 
 v0.3.0
-======
+------
 
 Major changes:
 
@@ -366,7 +384,7 @@ Requires:
 
 
 v0.2.0
-======
+------
 
 Update for changes to Rotator XML.
 Tested with the rotator.
@@ -380,7 +398,7 @@ Requires:
 * Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
 
 v0.1.0
-======
+------
 
 Still not fully tested with the real rotator.
 
