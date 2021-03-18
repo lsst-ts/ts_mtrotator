@@ -24,8 +24,6 @@ import contextlib
 import unittest
 import time
 
-import asynctest
-
 from lsst.ts import hexrotcomm
 from lsst.ts import salobj
 from lsst.ts import mtrotator
@@ -38,7 +36,7 @@ STD_TIMEOUT = 30  # timeout for command ack
 WAIT_FOR_CCW_DELAY = 0.5
 
 
-class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
+class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         # The amount of error the mock CCW will apply
         # when following the rotator.
