@@ -6,6 +6,24 @@
 Version History
 ###############
 
+v0.14.0
+-------
+
+Changes:
+
+* Publish the new ``ccwFollowingError`` telemetry topic.
+* Stop publishing the deprecated ``application`` telemetry topic.
+* Use `unittest.IsolatedAsyncioTestCase` instead of the abandoned ``asynctest`` package.
+
+Requires:
+
+* ts_hexrotcomm 0.16
+* ts_salobj 6.3
+* ts_simactuators 1
+* ts_idl 2.2
+* ts_xml 8.1
+* MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount``
+
 v0.13.0
 -------
 
@@ -17,6 +35,7 @@ Changes:
 * Users's Guide: improve the information for switching from GUI to DDS mode.
 
 Requires:
+
 * ts_hexrotcomm 0.16
 * ts_salobj 6.3
 * ts_simactuators 1
@@ -40,6 +59,7 @@ Changes:
 * Modernize ``doc/conf.py`` for documenteer 0.6.
 
 Requires:
+
 * ts_hexrotcomm 0.14
 * ts_salobj 6.1
 * ts_simactuators 1
@@ -57,6 +77,7 @@ Changes:
 * Update `RotatorCommander` to round motors data to 1 digit to reduce spurious output.
 
 Requires:
+
 * ts_hexrotcomm 0.14
 * ts_salobj 6.1
 * ts_simactuators 1
@@ -72,6 +93,7 @@ Changes:
 * Fix an error in RotatorCommander.
 
 Requires:
+
 * ts_hexrotcomm 0.12
 * ts_salobj 6.1
 * ts_simactuators 1
@@ -88,6 +110,7 @@ Changes:
 * Fix incorrect values for ``actualVelocity`` and ``debugActualVelocityB`` in the ``rotation`` telemetry topic.
 
 Requires:
+
 * ts_hexrotcomm 0.12
 * ts_salobj 6.1
 * ts_simactuators 1
@@ -104,6 +127,7 @@ Changes:
 * Pin the versions of ts_idl and ts_salobj in conda/meta.yaml.
 
 Requires:
+
 * ts_hexrotcomm 0.12
 * ts_salobj 6.1
 * ts_simactuators 1
