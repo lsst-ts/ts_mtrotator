@@ -398,11 +398,6 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             applicationStatus=server.telemetry.application_status,
         )
 
-        self.tel_application.set_put(
-            demand=server.telemetry.demand_pos,
-            position=server.telemetry.current_pos,
-            error=server.telemetry.demand_pos - server.telemetry.current_pos,
-        )
         self.tel_rotation.set_put(
             demandPosition=server.telemetry.demand_pos,
             demandVelocity=server.telemetry.demand_vel,

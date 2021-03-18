@@ -480,12 +480,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.STATIONARY,
             )
-            data = await self.remote.tel_application.next(
-                flush=True, timeout=STD_TIMEOUT
-            )
-            self.assertAlmostEqual(data.demand, 0)
+            data = await self.remote.tel_rotation.next(flush=True, timeout=STD_TIMEOUT)
+            self.assertAlmostEqual(data.demandPosition, 0)
             self.assertAlmostEqual(
-                data.position, 0, delta=self.csc.mock_ctrl.position_jitter
+                data.actualPosition, 0, delta=self.csc.mock_ctrl.position_jitter
             )
             data = await self.remote.evt_inPosition.next(
                 flush=False, timeout=STD_TIMEOUT
@@ -508,11 +506,9 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.STATIONARY,
             )
-            data = await self.remote.tel_application.next(
-                flush=True, timeout=STD_TIMEOUT
-            )
-            self.assertGreater(data.position, 0)
-            self.assertLess(data.position, destination)
+            data = await self.remote.tel_rotation.next(flush=True, timeout=STD_TIMEOUT)
+            self.assertGreater(data.actualPosition, 0)
+            self.assertLess(data.actualPosition, destination)
 
     async def test_track_good(self):
         """Test the trackStart and track commands.
@@ -527,12 +523,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.STATIONARY,
             )
-            data = await self.remote.tel_application.next(
-                flush=True, timeout=STD_TIMEOUT
-            )
-            self.assertAlmostEqual(data.demand, 0)
+            data = await self.remote.tel_rotation.next(flush=True, timeout=STD_TIMEOUT)
+            self.assertAlmostEqual(data.demandPosition, 0)
             self.assertAlmostEqual(
-                data.position, 0, delta=self.csc.mock_ctrl.position_jitter
+                data.actualPosition, 0, delta=self.csc.mock_ctrl.position_jitter
             )
             data = await self.remote.evt_inPosition.next(
                 flush=False, timeout=STD_TIMEOUT
@@ -658,12 +652,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.STATIONARY,
             )
-            data = await self.remote.tel_application.next(
-                flush=True, timeout=STD_TIMEOUT
-            )
-            self.assertAlmostEqual(data.demand, 0)
+            data = await self.remote.tel_rotation.next(flush=True, timeout=STD_TIMEOUT)
+            self.assertAlmostEqual(data.demandPosition, 0)
             self.assertAlmostEqual(
-                data.position, 0, delta=self.csc.mock_ctrl.position_jitter
+                data.actualPosition, 0, delta=self.csc.mock_ctrl.position_jitter
             )
             data = await self.remote.evt_inPosition.next(
                 flush=False, timeout=STD_TIMEOUT
@@ -713,12 +705,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, asynctest.TestCase):
             await self.assert_next_sample(
                 topic=self.remote.evt_tracking, tracking=False, noNewCommand=False
             )
-            data = await self.remote.tel_application.next(
-                flush=True, timeout=STD_TIMEOUT
-            )
-            self.assertAlmostEqual(data.demand, 0)
+            data = await self.remote.tel_rotation.next(flush=True, timeout=STD_TIMEOUT)
+            self.assertAlmostEqual(data.demandPosition, 0)
             self.assertAlmostEqual(
-                data.position, 0, delta=self.csc.mock_ctrl.position_jitter
+                data.actualPosition, 0, delta=self.csc.mock_ctrl.position_jitter
             )
             data = await self.remote.evt_inPosition.next(
                 flush=False, timeout=STD_TIMEOUT
