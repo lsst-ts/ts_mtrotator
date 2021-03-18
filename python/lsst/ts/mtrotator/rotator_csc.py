@@ -98,7 +98,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # has been too large.
         self._num_ccw_following_errors = 0
 
-        self._checking_ccw_following_error = False
+        self._check_ccw_following_error_task = salobj.make_done_future()
         self._faulting = False
         self._prev_flags_tracking_success = False
         self._prev_flags_tracking_lost = False
@@ -125,11 +125,11 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
     async def check_ccw_following_error(self):
         """Check the camera cable wrap following error and FAULT if too large.
-        """
-        # Avoid an accumulation of these coroutines running at the same time.
-        if self._checking_ccw_following_error:
-            return
 
+        Note: this is designed to be called by telemetry_callback, if the
+        CSC is enabled. Thus it is called every time telemetry is read
+        from the low-level controller.
+        """
         try:
             rot_data = self.tel_rotation.data
             rot_tai = rot_data.timestamp
@@ -155,6 +155,11 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             # Check the following error.
             corr_ccw_pos = ccw_data.actualPosition + ccw_data.actualVelocity * dt
             following_error = rot_data.actualPosition - corr_ccw_pos
+            self.tel_ccwFollowingError.set_put(
+                positionError=following_error,
+                velocityError=rot_data.actualVelocity - ccw_data.actualVelocity,
+                timestamp=rot_tai,
+            )
             if abs(following_error) <= self.config.max_ccw_following_error:
                 # The following error is acceptable.
                 self._num_ccw_following_errors = 0
@@ -168,8 +173,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                     f"error # {self._num_ccw_following_errors} = {following_error} "
                     f"> {self.config.max_ccw_following_error} deg",
                 )
-        finally:
-            self._checking_ccw_following_error = False
+        except Exception:
+            self.log.exception("check_ccw_following_error failed")
 
     async def configure(self, config):
         self.config = config
@@ -460,8 +465,15 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             detail="Engaged" if safety_interlock else "Disengaged",
         )
 
+        # Check following error if enabled and if not already checking
+        # following error (don't let these tasks build up).
         if self.summary_state == salobj.State.ENABLED:
-            asyncio.create_task(self.check_ccw_following_error())
+            if self._check_ccw_following_error_task.done():
+                self._check_ccw_following_error_task = asyncio.create_task(
+                    self.check_ccw_following_error()
+                )
+        else:
+            self._check_ccw_following_error_task.cancel()
 
     def make_mock_controller(self, initial_ctrl_state):
         return mock_controller.MockMTRotatorController(
