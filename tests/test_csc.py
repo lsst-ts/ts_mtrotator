@@ -22,7 +22,6 @@
 import asyncio
 import contextlib
 import unittest
-import time
 
 from lsst.ts import hexrotcomm
 from lsst.ts import salobj
@@ -440,12 +439,12 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 flush=False, timeout=STD_TIMEOUT
             )
             self.assertFalse(data.inPosition)
-            t0 = time.monotonic()
+            t0 = salobj.current_tai()
             await self.remote.cmd_move.set_start(
                 position=destination, timeout=STD_TIMEOUT
             )
             data = await self.remote.evt_target.next(flush=False, timeout=STD_TIMEOUT)
-            target_event_delay = time.monotonic() - t0
+            target_event_delay = salobj.current_tai() - t0
             self.assertAlmostEqual(data.position, destination)
             self.assertEqual(data.velocity, 0)
             target_time_difference = salobj.current_tai() - data.tai
@@ -459,7 +458,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 flush=False, timeout=STD_TIMEOUT + est_move_duration
             )
             self.assertTrue(data.inPosition)
-            print(f"Move duration: {time.monotonic() - t0:0.2f} seconds")
+            print(f"Move duration: {salobj.current_tai() - t0:0.2f} seconds")
             await self.assert_next_sample(
                 topic=self.remote.evt_controllerState,
                 controllerState=ControllerState.ENABLED,
@@ -536,7 +535,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.SLEWING_OR_TRACKING,
             )
-            st = time.monotonic()
+            slew_start_tai = salobj.current_tai()
 
             async def track():
                 tai0 = salobj.current_tai()
@@ -571,8 +570,8 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             finally:
                 track_task.cancel()
 
-            elt = time.monotonic() - st
-            print(f"Slew duration: {elt:0.2} seconds")
+            slew_duration = salobj.current_tai() - slew_start_tai
+            print(f"Slew duration: {slew_duration:0.2f} seconds")
 
             await self.remote.cmd_stop.start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(
