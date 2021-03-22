@@ -260,9 +260,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
 
             # Stop the telemetry. The CSC should soon go to FAULT.
             self.mock_ccw_task.cancel()
-            await self.assert_next_summary_state(
-                salobj.State.FAULT, timeout=STD_TIMEOUT
-            )
+            await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
                 errorCode=mtrotator.ErrorCode.CCW_NO_TELEMETRY,
@@ -300,9 +298,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # the CSC should shortly be disabled.
             self.ccw_following_error = self.csc.config.max_ccw_following_error + 0.1
             await self.assert_next_ccw_following_error()
-            await self.assert_next_summary_state(
-                salobj.State.FAULT, timeout=STD_TIMEOUT
-            )
+            await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
                 errorCode=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
@@ -328,9 +324,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # the CSC should shortly be disabled.
             self.ccw_following_error = -(self.csc.config.max_ccw_following_error + 0.1)
             await self.assert_next_ccw_following_error()
-            await self.assert_next_summary_state(
-                salobj.State.FAULT, timeout=STD_TIMEOUT
-            )
+            await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
                 errorCode=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
@@ -355,9 +349,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             self.ccw_transient_following_error = (
                 self.csc.config.max_ccw_following_error + 0.1
             )
-            await self.assert_next_summary_state(
-                salobj.State.FAULT, timeout=STD_TIMEOUT
-            )
+            await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
                 errorCode=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
