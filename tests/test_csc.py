@@ -30,6 +30,11 @@ from lsst.ts.idl.enums.MTRotator import ControllerState, EnabledSubstate
 
 STD_TIMEOUT = 30  # timeout for command ack
 
+# Standard delta for ccwFollowingError.positionError (deg)
+# and velocityError (deg/sec).
+STD_FOLLOWING_DELTA_POSITION = 0.1
+STD_FOLLOWING_DELTA_VELOCITY = 0.1
+
 # Time for a few telemetry updates and the mock CCW controller
 # to respond to them (seconds).
 WAIT_FOR_CCW_DELAY = 0.5
@@ -239,6 +244,9 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
     async def test_missing_ccw_telemetry(self):
         """Test that the CSC will fault if camera cable wrap telemetry
         disappears.
+
+        Also test that ccwFollowingError is output even in FAULT and STANDBY
+        states.
         """
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             await self.assert_next_summary_state(salobj.State.ENABLED)
@@ -247,17 +255,40 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # Wait for a few rotator telemetry messages,
             # which in turn trigger CCW telemetry.
             delay = self.csc.mock_ctrl.telemetry_interval * 5
+            print(f"Sleep for {delay} seconds, then cancel the mock CCW output")
             await asyncio.sleep(delay)
             self.assertEqual(self.csc.summary_state, salobj.State.ENABLED)
 
-            # Stop the telemetry. The CSC should go to FAULT
+            # Stop the telemetry. The CSC should soon go to FAULT.
             self.mock_ccw_task.cancel()
-            await self.assert_next_summary_state(
-                salobj.State.FAULT, timeout=STD_TIMEOUT
-            )
+            await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
                 errorCode=mtrotator.ErrorCode.CCW_NO_TELEMETRY,
+            )
+
+            # Test that ccwFollowingError is still output in FAULT and STANDBY
+            self.mock_ccw_task = asyncio.create_task(self.mock_ccw_loop())
+            data = await self.remote.tel_ccwFollowingError.next(
+                flush=True, timeout=STD_TIMEOUT
+            )
+            self.assertAlmostEqual(
+                data.positionError, 0, delta=STD_FOLLOWING_DELTA_POSITION
+            )
+            self.assertAlmostEqual(
+                data.velocityError, 0, delta=STD_FOLLOWING_DELTA_VELOCITY
+            )
+
+            await self.remote.cmd_clearError.start(timeout=STD_TIMEOUT)
+            await self.assert_next_summary_state(salobj.State.STANDBY)
+            data = await self.remote.tel_ccwFollowingError.next(
+                flush=True, timeout=STD_TIMEOUT
+            )
+            self.assertAlmostEqual(
+                data.positionError, 0, delta=STD_FOLLOWING_DELTA_POSITION
+            )
+            self.assertAlmostEqual(
+                data.velocityError, 0, delta=STD_FOLLOWING_DELTA_VELOCITY
             )
 
     async def test_excessive_ccw_following_error(self):
@@ -276,9 +307,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # the CSC should shortly be disabled.
             self.ccw_following_error = self.csc.config.max_ccw_following_error + 0.1
             await self.assert_next_ccw_following_error()
-            await self.assert_next_summary_state(
-                salobj.State.FAULT, timeout=STD_TIMEOUT
-            )
+            await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
                 errorCode=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
@@ -304,9 +333,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # the CSC should shortly be disabled.
             self.ccw_following_error = -(self.csc.config.max_ccw_following_error + 0.1)
             await self.assert_next_ccw_following_error()
-            await self.assert_next_summary_state(
-                salobj.State.FAULT, timeout=STD_TIMEOUT
-            )
+            await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
                 errorCode=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
@@ -331,9 +358,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             self.ccw_transient_following_error = (
                 self.csc.config.max_ccw_following_error + 0.1
             )
-            await self.assert_next_summary_state(
-                salobj.State.FAULT, timeout=STD_TIMEOUT
-            )
+            await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
                 errorCode=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
@@ -755,7 +780,12 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             )
 
     async def assert_next_ccw_following_error(
-        self, position_error=None, velocity_error=0, delta=0.1, timeout=STD_TIMEOUT,
+        self,
+        position_error=None,
+        velocity_error=0,
+        delta_position=STD_FOLLOWING_DELTA_POSITION,
+        delta_velocity=STD_FOLLOWING_DELTA_VELOCITY,
+        timeout=STD_TIMEOUT,
     ):
         """Assert that ccwFollowingError matches the specifications.
 
@@ -773,8 +803,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         velocity_error : `float`, optional
             Expected velocity error. 0 is almost always what you want,
             because the mock_ccw_loop matches the rotator velocity.
-        delta : `float`
-            Maximum allowed error in position and velocity.
+        delta_position : `float`
+            Maximum allowed error in position (deg)
+        delta_velocity : `float`
+            Maximum allowed error in velocity (deg/sec)
         timeout : `float`
             Maximum allowed time (seconds).
         """
@@ -784,13 +816,14 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             self._impl_assert_next_ccw_following_error(
                 position_error=position_error,
                 velocity_error=velocity_error,
-                delta=delta,
+                delta_position=delta_position,
+                delta_velocity=delta_velocity,
             ),
             timeout=timeout,
         )
 
     async def _impl_assert_next_ccw_following_error(
-        self, position_error, velocity_error, delta
+        self, position_error, velocity_error, delta_position, delta_velocity
     ):
         """Implement assert_next_ccw_following_error without a timeout
         and without argument defaults.
@@ -802,9 +835,9 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # Give enough slop for the timestamp to handle clock jitter
             # on Docker on macOS.
             self.assertAlmostEqual(data.timestamp, salobj.current_tai(), delta=0.2)
-            if abs(data.positionError - position_error) < delta:
+            if abs(data.positionError - position_error) < delta_position:
                 break
-        self.assertAlmostEqual(data.velocityError, velocity_error, delta)
+        self.assertAlmostEqual(data.velocityError, velocity_error, delta_velocity)
 
 
 if __name__ == "__main__":
