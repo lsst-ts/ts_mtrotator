@@ -32,7 +32,8 @@ STD_TIMEOUT = 30  # timeout for command ack
 
 # Standard delta for ccwFollowingError.positionError (deg)
 # and velocityError (deg/sec).
-STD_FOLLOWING_DELTA = 0.1
+STD_FOLLOWING_DELTA_POSITION = 0.1
+STD_FOLLOWING_DELTA_VELOCITY = 0.1
 
 # Time for a few telemetry updates and the mock CCW controller
 # to respond to them (seconds).
@@ -271,16 +272,24 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             data = await self.remote.tel_ccwFollowingError.next(
                 flush=True, timeout=STD_TIMEOUT
             )
-            self.assertAlmostEqual(data.positionError, 0, delta=STD_FOLLOWING_DELTA)
-            self.assertAlmostEqual(data.velocityError, 0, delta=STD_FOLLOWING_DELTA)
+            self.assertAlmostEqual(
+                data.positionError, 0, delta=STD_FOLLOWING_DELTA_POSITION
+            )
+            self.assertAlmostEqual(
+                data.velocityError, 0, delta=STD_FOLLOWING_DELTA_VELOCITY
+            )
 
             await self.remote.cmd_clearError.start(timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.STANDBY)
             data = await self.remote.tel_ccwFollowingError.next(
                 flush=True, timeout=STD_TIMEOUT
             )
-            self.assertAlmostEqual(data.positionError, 0, delta=STD_FOLLOWING_DELTA)
-            self.assertAlmostEqual(data.velocityError, 0, delta=STD_FOLLOWING_DELTA)
+            self.assertAlmostEqual(
+                data.positionError, 0, delta=STD_FOLLOWING_DELTA_POSITION
+            )
+            self.assertAlmostEqual(
+                data.velocityError, 0, delta=STD_FOLLOWING_DELTA_VELOCITY
+            )
 
     async def test_excessive_ccw_following_error(self):
         async with self.make_csc(initial_state=salobj.State.ENABLED):
@@ -774,7 +783,8 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         self,
         position_error=None,
         velocity_error=0,
-        delta=STD_FOLLOWING_DELTA,
+        delta_position=STD_FOLLOWING_DELTA_POSITION,
+        delta_velocity=STD_FOLLOWING_DELTA_VELOCITY,
         timeout=STD_TIMEOUT,
     ):
         """Assert that ccwFollowingError matches the specifications.
@@ -793,8 +803,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         velocity_error : `float`, optional
             Expected velocity error. 0 is almost always what you want,
             because the mock_ccw_loop matches the rotator velocity.
-        delta : `float`
-            Maximum allowed error in position and velocity.
+        delta_position : `float`
+            Maximum allowed error in position (deg)
+        delta_velocity : `float`
+            Maximum allowed error in velocity (deg/sec)
         timeout : `float`
             Maximum allowed time (seconds).
         """
@@ -804,13 +816,14 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             self._impl_assert_next_ccw_following_error(
                 position_error=position_error,
                 velocity_error=velocity_error,
-                delta=delta,
+                delta_position=delta_position,
+                delta_velocity=delta_velocity,
             ),
             timeout=timeout,
         )
 
     async def _impl_assert_next_ccw_following_error(
-        self, position_error, velocity_error, delta
+        self, position_error, velocity_error, delta_position, delta_velocity
     ):
         """Implement assert_next_ccw_following_error without a timeout
         and without argument defaults.
@@ -822,9 +835,9 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # Give enough slop for the timestamp to handle clock jitter
             # on Docker on macOS.
             self.assertAlmostEqual(data.timestamp, salobj.current_tai(), delta=0.2)
-            if abs(data.positionError - position_error) < delta:
+            if abs(data.positionError - position_error) < delta_position:
                 break
-        self.assertAlmostEqual(data.velocityError, velocity_error, delta)
+        self.assertAlmostEqual(data.velocityError, velocity_error, delta_velocity)
 
 
 if __name__ == "__main__":
