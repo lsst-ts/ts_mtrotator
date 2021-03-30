@@ -11,9 +11,11 @@ v0.14.0
 
 Changes:
 
-* Publish the new ``ccwFollowingError`` telemetry topic.
+* Publish the new ``ccwFollowingError`` telemetry topic. This requires ts_xml 8.1.
 * Stop publishing the deprecated ``application`` telemetry topic.
 * Use `unittest.IsolatedAsyncioTestCase` instead of the abandoned ``asynctest`` package.
+* Use pre-commit instead of a custom pre-commit hook; see the README.md for instructions.
+* Format the code with black 20.8b1.
 
 Requires:
 

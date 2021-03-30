@@ -296,8 +296,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         )
 
     async def do_stop(self, data):
-        """Halt tracking or any other motion.
-        """
+        """Halt tracking or any other motion."""
         if self.summary_state != salobj.State.ENABLED:
             raise salobj.ExpectedError("Not enabled")
         await self.run_command(
@@ -306,8 +305,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         )
 
     async def do_track(self, data):
-        """Specify a position, velocity, TAI time tracking update.
-        """
+        """Specify a position, velocity, TAI time tracking update."""
         if self.summary_state != salobj.State.ENABLED:
             raise salobj.ExpectedError("Not enabled")
         if (

@@ -33,7 +33,10 @@ class ValidationTestCase(unittest.TestCase):
     def setUp(self):
         self.schema = mtrotator.CONFIG_SCHEMA
         self.validator = salobj.DefaultingValidator(schema=self.schema)
-        self.default = dict(max_ccw_following_error=2.2, num_ccw_following_errors=3,)
+        self.default = dict(
+            max_ccw_following_error=2.2,
+            num_ccw_following_errors=3,
+        )
 
     def test_default(self):
         result = self.validator.validate(None)
@@ -41,7 +44,10 @@ class ValidationTestCase(unittest.TestCase):
             self.assertEqual(result[field], expected_value)
 
     def test_some_specified(self):
-        data = dict(max_ccw_following_error=1.5, num_ccw_following_errors=1,)
+        data = dict(
+            max_ccw_following_error=1.5,
+            num_ccw_following_errors=1,
+        )
         for field, value in data.items():
             one_field_data = {field: value}
             with self.subTest(one_field_data=one_field_data):
@@ -53,7 +59,10 @@ class ValidationTestCase(unittest.TestCase):
                         self.assertEqual(result[field], default_value)
 
     def test_all_specified(self):
-        data = dict(max_ccw_following_error=1.5, num_ccw_following_errors=1,)
+        data = dict(
+            max_ccw_following_error=1.5,
+            num_ccw_following_errors=1,
+        )
         data_copy = data.copy()
         result = self.validator.validate(data)
         self.assertEqual(data, data_copy)
