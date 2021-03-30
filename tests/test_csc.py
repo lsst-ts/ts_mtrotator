@@ -58,8 +58,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         )
 
     async def check_rotation(self):
-        """Check the next rotation telemetry messages.
-        """
+        """Check the next rotation telemetry messages."""
         # We need some margin, slightly more than I naively expected,
         # possibly because there is some roundoff error in converting time
         # between TAI unix seconds and astropy times.
@@ -221,8 +220,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             print(f"mock_ccw_loop failed: {e}")
 
     async def test_bin_script(self):
-        """Test running from the command line script.
-        """
+        """Test running from the command line script."""
         await self.check_bin_script(
             name="MTRotator",
             index=None,
@@ -375,7 +373,8 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.remote.cmd_fault.start(timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
-                self.remote.evt_errorCode, errorCode=mtrotator.ErrorCode.FAULT_COMMAND,
+                self.remote.evt_errorCode,
+                errorCode=mtrotator.ErrorCode.FAULT_COMMAND,
             )
 
             # Make sure the fault command only works in enabled state
@@ -407,8 +406,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             )
 
     async def test_configure_acceleration(self):
-        """Test the configureAcceleration command.
-        """
+        """Test the configureAcceleration command."""
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             data = await self.remote.evt_configuration.next(
                 flush=False, timeout=STD_TIMEOUT
@@ -432,8 +430,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                         )
 
     async def test_configure_velocity(self):
-        """Test the configureVelocity command.
-        """
+        """Test the configureVelocity command."""
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             data = await self.remote.evt_configuration.next(
                 flush=False, timeout=STD_TIMEOUT
@@ -456,8 +453,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                         )
 
     async def test_move(self):
-        """Test the move command for point to point motion.
-        """
+        """Test the move command for point to point motion."""
         destination = 2  # a small move so the test runs quickly
         # Estimated time to move; a crude estimate used for timeouts
         est_move_duration = 1
@@ -501,8 +497,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.check_rotation()
 
     async def test_stop_move(self):
-        """Test stopping a point to point move.
-        """
+        """Test stopping a point to point move."""
         destination = 20  # a large move so we have plenty of time to stop
         # Estimated time to move; a crude estimate used for timeouts
         async with self.make_csc(initial_state=salobj.State.ENABLED):
@@ -542,8 +537,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             self.assertLess(data.actualPosition, destination)
 
     async def test_track_good(self):
-        """Test the trackStart and track commands.
-        """
+        """Test the trackStart and track commands."""
         pos0 = 2  # a small move so the slew ends quickly
         vel = 0.01
         # Estimated time to slew; a crude estimate used for timeouts

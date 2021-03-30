@@ -36,7 +36,9 @@ class RotatorCommander(salobj.CscCommander):
     def __init__(self, enable):
         self.tracking_task = asyncio.Future()
         super().__init__(
-            name="MTRotator", index=0, enable=enable,
+            name="MTRotator",
+            index=0,
+            enable=enable,
         )
         self.help_dict["ramp"] = "start_position end_position speed "
         "# track a path of constant",
@@ -50,15 +52,13 @@ class RotatorCommander(salobj.CscCommander):
         await super().close()
 
     async def do_ramp(self, args):
-        """Track from start_position to end_position at the specified speed.
-        """
+        """Track from start_position to end_position at the specified speed."""
         self.tracking_task.cancel()
         kwargs = self.check_arguments(args, "start_position", "end_position", "speed")
         self.tracking_task = asyncio.ensure_future(self._ramp(**kwargs))
 
     async def do_cosine(self, args):
-        """Track along a cosine wave (one full cycle).
-        """
+        """Track along a cosine wave (one full cycle)."""
         self.tracking_task.cancel()
         kwargs = self.check_arguments(args, "center_position", "amplitude", "max_speed")
         self.tracking_task = asyncio.ensure_future(self._cosine(**kwargs))

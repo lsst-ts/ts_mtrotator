@@ -25,8 +25,7 @@ import ctypes
 
 
 class Config(ctypes.Structure):
-    """Configuration: rotConfigTelemetryStreamStructure_t in Moog code.
-    """
+    """Configuration: rotConfigTelemetryStreamStructure_t in Moog code."""
 
     _pack_ = 1
     _fields_ = [
