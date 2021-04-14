@@ -98,7 +98,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # has been too large.
         self._num_ccw_following_errors = 0
 
-        self._checking_ccw_following_error = False
+        self._check_ccw_following_error_task = salobj.make_done_future()
+        self._reported_ccw_following_error_issue = False
         self._faulting = False
         self._prev_flags_tracking_success = False
         self._prev_flags_tracking_lost = False
@@ -124,12 +125,15 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         await super().start()
 
     async def check_ccw_following_error(self):
-        """Check the camera cable wrap following error and FAULT if too large.
-        """
-        # Avoid an accumulation of these coroutines running at the same time.
-        if self._checking_ccw_following_error:
-            return
+        """Check the camera cable wrap following error.
 
+        Publish the value, if the camera cable wrap angle can be read.
+        If ENABLED and the value is too large, then go to FAULT state.
+
+        Note: this is designed to be called by telemetry_callback.
+        Thus it is called every time telemetry is read
+        from the low-level controller.
+        """
         try:
             rot_data = self.tel_rotation.data
             rot_tai = rot_data.timestamp
@@ -137,39 +141,63 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             # Get camera cable wrap telemetry and check its age.
             ccw_data = self.mtmount_remote.tel_cameraCableWrap.get()
             if ccw_data is None:
-                # We should get data because we check for this in do_enable.
-                await self.afault(
-                    code=enums.ErrorCode.CCW_NO_TELEMETRY,
-                    report="Bug: no camera cable wrap telemetry",
-                )
+                err_msg = "Cannot read cameraCableWrap telemetry"
+                if self.summary_state == salobj.State.ENABLED:
+                    await self.afault(
+                        code=enums.ErrorCode.CCW_NO_TELEMETRY, report=err_msg
+                    )
+                elif not self._reported_ccw_following_error_issue:
+                    self.log.warning(err_msg)
+                    self._reported_ccw_following_error_issue = True
+
                 return
+
             dt = rot_tai - ccw_data.timestamp
             if abs(dt) > MAX_CCW_TELEMETRY_AGE:
-                await self.afault(
-                    code=enums.ErrorCode.CCW_NO_TELEMETRY,
-                    report="Camera cable wrap telemetry is too old: "
-                    f"dt={dt}; abs(dt) > {MAX_CCW_TELEMETRY_AGE}",
+                err_msg = (
+                    "Camera cable wrap telemetry is too old: "
+                    f"dt={dt}; abs(dt) > {MAX_CCW_TELEMETRY_AGE}"
                 )
+                if self.summary_state == salobj.State.ENABLED:
+                    await self.afault(
+                        code=enums.ErrorCode.CCW_NO_TELEMETRY, report=err_msg
+                    )
+                elif not self._reported_ccw_following_error_issue:
+                    self.log.warning(err_msg)
+                    self._reported_ccw_following_error_issue = True
                 return
 
-            # Check the following error.
+            self._reported_ccw_following_error_issue = False
+
+            # Compute and report the following error.
             corr_ccw_pos = ccw_data.actualPosition + ccw_data.actualVelocity * dt
             following_error = rot_data.actualPosition - corr_ccw_pos
-            if abs(following_error) <= self.config.max_ccw_following_error:
-                # The following error is acceptable.
-                self._num_ccw_following_errors = 0
-                return
+            self.tel_ccwFollowingError.set_put(
+                positionError=following_error,
+                velocityError=rot_data.actualVelocity - ccw_data.actualVelocity,
+                timestamp=rot_tai,
+            )
 
-            self._num_ccw_following_errors += 1
-            if self._num_ccw_following_errors >= self.config.num_ccw_following_errors:
-                await self.afault(
-                    code=enums.ErrorCode.CCW_FOLLOWING_ERROR,
-                    report=f"Camera cable wrap not following closely enough: "
-                    f"error # {self._num_ccw_following_errors} = {following_error} "
-                    f"> {self.config.max_ccw_following_error} deg",
-                )
-        finally:
-            self._checking_ccw_following_error = False
+            # If enabled then check the error and go to FAULT if too large.
+            if self.summary_state == salobj.State.ENABLED:
+                if abs(following_error) <= self.config.max_ccw_following_error:
+                    # The following error is acceptable.
+                    self._num_ccw_following_errors = 0
+                    return
+
+                self._num_ccw_following_errors += 1
+                if (
+                    self._num_ccw_following_errors
+                    >= self.config.num_ccw_following_errors
+                ):
+                    await self.afault(
+                        code=enums.ErrorCode.CCW_FOLLOWING_ERROR,
+                        report=f"Camera cable wrap not following closely enough: "
+                        f"error # {self._num_ccw_following_errors} = {following_error} "
+                        f"> {self.config.max_ccw_following_error} deg",
+                    )
+        except Exception:
+            self.log.exception("check_ccw_following_error failed")
 
     async def configure(self, config):
         self.config = config
@@ -229,7 +257,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             raise salobj.ExpectedError(
                 "Cannot enable the rotator until it receives camera cable wrap telemetry"
             )
-
+        self._reported_ccw_following_error_issue = False
         await super().do_enable(data)
 
     async def do_fault(self, data):
@@ -268,8 +296,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         )
 
     async def do_stop(self, data):
-        """Halt tracking or any other motion.
-        """
+        """Halt tracking or any other motion."""
         if self.summary_state != salobj.State.ENABLED:
             raise salobj.ExpectedError("Not enabled")
         await self.run_command(
@@ -278,8 +305,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         )
 
     async def do_track(self, data):
-        """Specify a position, velocity, TAI time tracking update.
-        """
+        """Specify a position, velocity, TAI time tracking update."""
         if self.summary_state != salobj.State.ENABLED:
             raise salobj.ExpectedError("Not enabled")
         if (
@@ -398,11 +424,6 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             applicationStatus=server.telemetry.application_status,
         )
 
-        self.tel_application.set_put(
-            demand=server.telemetry.demand_pos,
-            position=server.telemetry.current_pos,
-            error=server.telemetry.demand_pos - server.telemetry.current_pos,
-        )
         self.tel_rotation.set_put(
             demandPosition=server.telemetry.demand_pos,
             demandVelocity=server.telemetry.demand_vel,
@@ -465,8 +486,12 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             detail="Engaged" if safety_interlock else "Disengaged",
         )
 
-        if self.summary_state == salobj.State.ENABLED:
-            asyncio.create_task(self.check_ccw_following_error())
+        # Check following error if enabled and if not already checking
+        # following error (don't let these tasks build up).
+        if self._check_ccw_following_error_task.done():
+            self._check_ccw_following_error_task = asyncio.create_task(
+                self.check_ccw_following_error()
+            )
 
     def make_mock_controller(self, initial_ctrl_state):
         return mock_controller.MockMTRotatorController(

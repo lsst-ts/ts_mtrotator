@@ -43,8 +43,7 @@ class CommandCode(enum.IntEnum):
 
 
 class ErrorCode(enum.IntEnum):
-    """`MTRotatorCsc` error codes.
-    """
+    """`MTRotatorCsc` error codes."""
 
     COMMUNICATION_ERROR = 1
     """Error communicating with the low-level controller."""

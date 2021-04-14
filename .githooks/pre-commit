@@ -1,5 +1,0 @@
-#!/bin/sh
-if ! black . --check; then
-    echo "Reformat your code with `black .` and add the changes to your commit."
-    exit 1
-fi
