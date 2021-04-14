@@ -11,7 +11,7 @@ v0.14.0
 
 Changes:
 
-* Publish the new ``ccwFollowingError`` telemetry topic. This requires ts_xml 8.1.
+* Publish the new ``ccwFollowingError`` telemetry topic. This requires ts_xml 9.
 * Stop publishing the deprecated ``application`` telemetry topic.
 * Use `unittest.IsolatedAsyncioTestCase` instead of the abandoned ``asynctest`` package.
 * Use pre-commit instead of a custom pre-commit hook; see the README.md for instructions.
@@ -23,8 +23,8 @@ Requires:
 * ts_salobj 6.3
 * ts_simactuators 1
 * ts_idl 2.2
-* ts_xml 8.1
-* MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount``
+* ts_xml 9
+* MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount`` using ts_xml 9
 
 v0.13.0
 -------
