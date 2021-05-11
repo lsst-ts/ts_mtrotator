@@ -409,8 +409,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         server : `lsst.ts.hexrotcomm.CommandTelemetryServer`
             TCP/IP server.
         """
-        tel_utc_unix = server.header.tv_sec + server.header.tv_nsec / 1e9
-        tel_tai_unix = salobj.tai_from_utc(tel_utc_unix)
+        tai_unix = server.header.tai_sec + server.header.tai_nsec / 1e9
         if self._tracking_started_telemetry_counter > 0:
             self._tracking_started_telemetry_counter -= 1
         self.evt_summaryState.set_put(summaryState=self.summary_state)
@@ -436,7 +435,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             / 2,
             debugActualVelocityA=server.telemetry.current_vel_ch_a_fb,
             debugActualVelocityB=server.telemetry.current_vel_ch_b_fb,
-            timestamp=tel_tai_unix,
+            timestamp=tai_unix,
         )
         self.tel_electrical.set_put(
             copleyStatusWordDrive=[
