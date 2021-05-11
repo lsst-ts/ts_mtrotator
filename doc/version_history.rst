@@ -6,6 +6,25 @@
 Version History
 ###############
 
+v0.15.0
+-------
+
+Changes:
+
+* Updated for ts_hexrotcomm 0.20 (which is required).
+  Messages from the low-level controller now contain TAI unix time instead of UTC.
+  Note that this requires a corresponding update to the low-level rotator controller
+  (see `DM-26451 <https://jira.lsstcorp.org/browse/DM-26451>`_)
+
+Requires:
+
+* ts_hexrotcomm 0.16
+* ts_salobj 6.3
+* ts_simactuators 1
+* ts_idl 2.2
+* ts_xml 9
+* MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount`` using ts_xml 9
+
 v0.14.0
 -------
 
