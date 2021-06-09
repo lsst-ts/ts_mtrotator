@@ -6,6 +6,24 @@
 Version History
 ###############
 
+v0.15.1
+-------
+
+Changes:
+
+* Improve the `inPosition` event by using more appropriate flags from the low-level controller.
+* Improve robustness of test_missing_ccw_telemetry in tests/test_csc.py: cancelling the mock CCW telemetry task did not always work.
+* Fix the Jenkins job by installing ts_tcpip.
+
+Requires:
+
+* ts_hexrotcomm 0.16
+* ts_salobj 6.3
+* ts_simactuators 1
+* ts_idl 2.2
+* ts_xml 9
+* MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount`` using ts_xml 9
+
 v0.15.0
 -------
 
