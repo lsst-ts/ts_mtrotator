@@ -460,8 +460,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         self.evt_inPosition.set_put(
             inPosition=bool(
-                server.telemetry.flags_pt2pt_move_complete
-                or server.telemetry.flags_slew_complete
+                server.telemetry.flags_move_success
+                or server.telemetry.flags_tracking_success
             )
         )
 
