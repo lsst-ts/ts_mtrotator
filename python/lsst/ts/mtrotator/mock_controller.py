@@ -318,13 +318,14 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
                 and in_position
             ):
                 self.telemetry.flags_pt2pt_move_complete = 1
+                self.telemetry.flags_move_success = 1
                 self.telemetry.enabled_substate = EnabledSubstate.STATIONARY
             else:
                 self.telemetry.flags_pt2pt_move_complete = 0
+                self.telemetry.flags_move_success = 0
             self.telemetry.flags_stop_complete = 1
             self.telemetry.flags_following_error = 0.001
-            self.telemetry.flags_move_success = 1
-            self.telemetry.flags_tracking_success = in_position
+            self.telemetry.flags_tracking_success = self.telemetry.flags_slew_complete
             self.telemetry.flags_position_feedback_fault = 0
             self.telemetry.flags_tracking_lost = 0
             self.telemetry.flags_no_new_track_cmd_error = self.tracking_timed_out
