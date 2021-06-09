@@ -50,6 +50,12 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         # Like ccw_following_error, but only applied once, then zeroed.
         self.ccw_transient_following_error = 0
 
+        # Set False to stop self.mock_ccw_loop
+        # (and optionally await self.mock_ccw_task).
+        # Cancelling self.mock_ccw_task does not always work in Jenkins
+        # (I don't know why) so use this technique instead.
+        self.enable_mock_ccw_telemetry = False
+
     def basic_make_csc(self, initial_state, simulation_mode=1, config_dir=None):
         return mtrotator.RotatorCsc(
             initial_state=initial_state,
@@ -168,7 +174,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 self.mock_ccw_task = asyncio.create_task(self.mock_ccw_loop())
             else:
                 print("do not run mock_ccw_loop")
-                self.mock_ccw_task = asyncio.Future()
+                self.mock_ccw_task = salobj.make_done_future()
             if initial_state != modified_initial_state:
                 await self.remote.cmd_enable.start(timeout=STD_TIMEOUT)
                 await self.assert_next_summary_state(salobj.State.DISABLED)
@@ -179,7 +185,8 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             try:
                 yield
             finally:
-                self.mock_ccw_task.cancel()
+                self.enable_mock_ccw_telemetry = False
+                await asyncio.wait_for(self.mock_ccw_task, timeout=STD_TIMEOUT)
 
     async def mock_ccw_loop(self):
         """Mock the MTMount camera cable wrap system.
@@ -188,8 +195,9 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         the camera cable wrap following the rotator.
         """
         print("mock_ccw_loop starting")
+        self.enable_mock_ccw_telemetry = True
         try:
-            while True:
+            while self.enable_mock_ccw_telemetry:
                 rotation_data = await self.remote.tel_rotation.next(
                     flush=True, timeout=STD_TIMEOUT
                 )
@@ -214,6 +222,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                     timestamp=ccw_tai,
                 )
                 self.ccw_transient_following_error = 0
+            print("mock_ccw_loop ends")
         except asyncio.CancelledError:
             print("mock_ccw_loop canceled")
         except Exception as e:
@@ -258,7 +267,8 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             self.assertEqual(self.csc.summary_state, salobj.State.ENABLED)
 
             # Stop the telemetry. The CSC should soon go to FAULT.
-            self.mock_ccw_task.cancel()
+            self.enable_mock_ccw_telemetry = False
+            await asyncio.wait_for(self.mock_ccw_task, timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
