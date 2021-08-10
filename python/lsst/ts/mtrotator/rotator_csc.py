@@ -449,12 +449,12 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         )
         self.tel_motors.set_put(
             calibrated=[
-                server.telemetry.state_estimation_ch_a_fb,
-                server.telemetry.state_estimation_ch_b_fb,
+                server.telemetry.ch_a_fb,
+                server.telemetry.ch_b_fb,
             ],
             raw=[
-                server.telemetry.state_estimation_ch_a_motor_encoder,
-                server.telemetry.state_estimation_ch_b_motor_encoder,
+                server.telemetry.motor_encoder_ch_a,
+                server.telemetry.motor_encoder_ch_b,
             ],
         )
 
