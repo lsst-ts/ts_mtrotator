@@ -329,10 +329,10 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
             self.telemetry.flags_position_feedback_fault = 0
             self.telemetry.flags_tracking_lost = 0
             self.telemetry.flags_no_new_track_cmd_error = self.tracking_timed_out
-            self.telemetry.state_estimation_ch_a_fb = 0
-            self.telemetry.state_estimation_ch_b_fb = 0
-            self.telemetry.state_estimation_ch_a_motor_encoder = 0
-            self.telemetry.state_estimation_ch_b_motor_encoder = 0
+            self.telemetry.ch_a_fb = 0
+            self.telemetry.ch_b_fb = 0
+            self.telemetry.motor_encoder_ch_a = 0
+            self.telemetry.motor_encoder_ch_b = 0
             self.telemetry.rotator_pos_deg = curr_pos
         except Exception:
             self.log.exception("update_telemetry failed; output incomplete telemetry")
