@@ -435,6 +435,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             / 2,
             debugActualVelocityA=server.telemetry.current_vel_ch_a_fb,
             debugActualVelocityB=server.telemetry.current_vel_ch_b_fb,
+            odometer=server.telemetry.rotator_odometer,
             timestamp=tai_unix,
         )
         self.tel_electrical.set_put(
@@ -455,6 +456,16 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             raw=[
                 server.telemetry.motor_encoder_ch_a,
                 server.telemetry.motor_encoder_ch_b,
+            ],
+            current=[
+                server.telemetry.motor_current_axis_a,
+                server.telemetry.motor_current_axis_b,
+            ],
+            # The torque from the low-level controller is N-m/1e6
+            # (and is an integer); convert it to N-m
+            torque=[
+                server.telemetry.motor_torque_axis_a / 1e6,
+                server.telemetry.motor_torque_axis_b / 1e6,
             ],
         )
 

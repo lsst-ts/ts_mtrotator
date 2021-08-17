@@ -42,6 +42,9 @@ WAIT_FOR_CCW_DELAY = 0.5
 
 class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        # The most recently seen rotation.odometer telemetry reading
+        self.prev_odometer = None
+
         # The amount of error the mock CCW will apply
         # when following the rotator.
         # Reported CCW position = rotator position + ccw_following_error
@@ -63,8 +66,8 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             config_dir=config_dir,
         )
 
-    async def check_rotation(self):
-        """Check the next rotation telemetry messages."""
+    async def check_telemetry(self):
+        """Check the the next rotation and motors telemetry messages."""
         # We need some margin, slightly more than I naively expected,
         # possibly because there is some roundoff error in converting time
         # between TAI unix seconds and astropy times.
@@ -78,13 +81,16 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         # and so it is easier to determine which test failed
         # in the tracking task in test_track_good.
         print(
-            f"delta_pos={abs(rotation_data.demandPosition - path_segment.position):0.8f}"
+            f"pos={rotation_data.demandPosition:0.8f}; "
+            f"delta={abs(rotation_data.demandPosition - path_segment.position):0.8f}"
         )
         print(
-            f"delta_vel={abs(rotation_data.demandVelocity - path_segment.velocity):0.8f}"
+            f"vel={rotation_data.demandVelocity:0.8f}; "
+            f"delta={abs(rotation_data.demandVelocity - path_segment.velocity):0.8f}"
         )
         print(
-            f"delta_acc={abs(rotation_data.demandAcceleration - path_segment.acceleration):0.8f}"
+            f"acc={rotation_data.demandAcceleration:0.8f}; "
+            f"delta={abs(rotation_data.demandAcceleration - path_segment.acceleration):0.8f}"
         )
         self.assertAlmostEqual(
             rotation_data.demandPosition, path_segment.position, delta=slop
@@ -104,6 +110,35 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         self.assertAlmostEqual(
             rotation_data.actualVelocity, path_segment.velocity, delta=slop
         )
+
+        if self.prev_odometer is not None:
+            print(
+                f"odometer={rotation_data.odometer:0.8f}; "
+                f"prev_odometer={self.prev_odometer:0.8f}"
+            )
+            self.assertGreaterEqual(rotation_data.odometer, self.prev_odometer)
+        self.prev_odometer = rotation_data.odometer
+
+        motors_data = await self.remote.tel_motors.next(flush=True, timeout=STD_TIMEOUT)
+        acceleration = self.csc.mock_ctrl.rotator.path.at(
+            motors_data.private_sndStamp
+        ).acceleration
+        desired_current = acceleration * self.csc.mock_ctrl.current_per_acceleration
+        desired_torque = acceleration * self.csc.mock_ctrl.torque_per_acceleration
+        print(
+            f"current={motors_data.current[0]:0.8f}; "
+            f"delta={abs(motors_data.current[0] - desired_current):0.8f}"
+        )
+        print(
+            f"torque={motors_data.torque[0]:0.8f}; "
+            f"delta={abs(motors_data.torque[0] - desired_torque):0.8f}"
+        )
+        self.assertAlmostEqual(motors_data.current[0], desired_current)
+        self.assertAlmostEqual(motors_data.torque[0], desired_torque)
+        # The mock controller publishes exactly the same current and torque
+        # for both motors (though that is not realistic).
+        self.assertEqual(motors_data.current[0], motors_data.current[1])
+        self.assertEqual(motors_data.torque[0], motors_data.torque[1])
 
     @contextlib.asynccontextmanager
     async def make_csc(
@@ -474,7 +509,8 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.STATIONARY,
             )
-            await self.check_rotation()
+            self.assertEqual(self.csc.mock_ctrl.odometer, 0)
+            await self.check_telemetry()
             data = await self.remote.evt_inPosition.next(
                 flush=False, timeout=STD_TIMEOUT
             )
@@ -489,6 +525,9 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             self.assertEqual(data.velocity, 0)
             target_time_difference = salobj.current_tai() - data.tai
             self.assertLessEqual(abs(target_time_difference), target_event_delay)
+
+            for i in range(10):
+                await self.check_telemetry()
             await self.assert_next_sample(
                 topic=self.remote.evt_controllerState,
                 controllerState=ControllerState.ENABLED,
@@ -504,7 +543,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.STATIONARY,
             )
-            await self.check_rotation()
+            await self.check_telemetry()
+            # The odometer is accumulated in a somewhat simplistic fashion,
+            # so give some slop (though this is more than we really need)
+            self.assertAlmostEqual(self.csc.mock_ctrl.odometer, destination, delta=0.01)
 
     async def test_stop_move(self):
         """Test stopping a point to point move."""
@@ -590,7 +632,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                     self.assertAlmostEqual(data.position, pos)
                     self.assertAlmostEqual(data.velocity, vel)
                     self.assertAlmostEqual(data.tai, tai)
-                    await self.check_rotation()
+                    await self.check_telemetry()
                     await asyncio.sleep(0.1)
 
             track_task = asyncio.create_task(track())
