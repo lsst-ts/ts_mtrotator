@@ -457,10 +457,12 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 server.telemetry.motor_encoder_ch_a,
                 server.telemetry.motor_encoder_ch_b,
             ],
-            current=[
-                server.telemetry.motor_current_axis_a,
-                server.telemetry.motor_current_axis_b,
-            ],
+            # DM-31447 Uncomment when the low-level controller provides
+            # this data (right now the fields are always zero).
+            # current=[
+            #     server.telemetry.motor_current_axis_a,
+            #     server.telemetry.motor_current_axis_b,
+            # ],
             # The torque from the low-level controller is N-m/1e6
             # (and is an integer); convert it to N-m
             torque=[

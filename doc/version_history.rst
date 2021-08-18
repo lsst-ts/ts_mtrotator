@@ -12,7 +12,7 @@ v0.17.0
 Changes:
 
 * Update for ts_xml 9.2, which is required.
-* Write new motors.current, motors.torque, and rotation.odometer telemetry fields.
+* Write new motors.torque, and rotation.odometer telemetry fields.
 
 Requires:
 

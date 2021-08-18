@@ -123,21 +123,25 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         acceleration = self.csc.mock_ctrl.rotator.path.at(
             motors_data.private_sndStamp
         ).acceleration
-        desired_current = acceleration * self.csc.mock_ctrl.current_per_acceleration
+        # DM-31447 uncomment when the low-level controller provides this data
+        # desired_current = acceleration * self.csc.mock_ctrl.current_per_acceleration  # noqa
         desired_torque = acceleration * self.csc.mock_ctrl.torque_per_acceleration
-        print(
-            f"current={motors_data.current[0]:0.8f}; "
-            f"delta={abs(motors_data.current[0] - desired_current):0.8f}"
-        )
+        # DM-31447 uncomment when the low-level controller provides this data
+        # print(
+        #     f"current={motors_data.current[0]:0.8f}; "
+        #     f"delta={abs(motors_data.current[0] - desired_current):0.8f}"
+        # )
         print(
             f"torque={motors_data.torque[0]:0.8f}; "
             f"delta={abs(motors_data.torque[0] - desired_torque):0.8f}"
         )
-        self.assertAlmostEqual(motors_data.current[0], desired_current)
+        # DM-31447 uncomment when the low-level controller provides this data
+        # self.assertAlmostEqual(motors_data.current[0], desired_current)
         self.assertAlmostEqual(motors_data.torque[0], desired_torque)
         # The mock controller publishes exactly the same current and torque
         # for both motors (though that is not realistic).
-        self.assertEqual(motors_data.current[0], motors_data.current[1])
+        # DM-31447 uncomment when the low-level controller provides this data
+        # self.assertEqual(motors_data.current[0], motors_data.current[1])
         self.assertEqual(motors_data.torque[0], motors_data.torque[1])
 
     @contextlib.asynccontextmanager
