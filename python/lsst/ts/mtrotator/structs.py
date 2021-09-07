@@ -38,7 +38,7 @@ class Config(ctypes.Structure):
         ("track_success_pos_threshold", ctypes.c_double),
         ("tracking_lost_timeout", ctypes.c_double),
     ]
-    FRAME_ID = 0x19
+    FRAME_ID = 0x2
 
 
 class Telemetry(ctypes.Structure):
@@ -113,4 +113,4 @@ class Telemetry(ctypes.Structure):
         ("set_pos", ctypes.c_double),
         ("flags_no_new_track_cmd_error", ctypes.c_double),
     ]
-    FRAME_ID = 0x5
+    FRAME_ID = 0x0
