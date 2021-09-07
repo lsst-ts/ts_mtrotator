@@ -6,6 +6,23 @@
 Version History
 ###############
 
+v0.16.1
+-------
+
+Changes:
+
+* Fix incorrect frame IDs for messages from the low-level controller.
+
+Requires:
+
+* ts_rotator_controller v1.2.2
+* ts_hexrotcomm 0.20
+* ts_salobj 6.3
+* ts_simactuators 1
+* ts_idl 2.2
+* ts_xml 9
+* MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount`` using ts_xml 9
+
 v0.16.0
 -------
 
