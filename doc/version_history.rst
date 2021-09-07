@@ -16,7 +16,7 @@ Changes:
 
 Requires:
 
-* ts_hexrotcomm 0.16
+* ts_hexrotcomm 0.20
 * ts_salobj 6.3
 * ts_simactuators 1
 * ts_idl 2.2
@@ -33,7 +33,7 @@ Changes:
 
 Requires:
 
-* ts_hexrotcomm 0.16
+* ts_hexrotcomm 0.20
 * ts_salobj 6.3
 * ts_simactuators 1
 * ts_idl 2.2
@@ -51,7 +51,7 @@ Changes:
 
 Requires:
 
-* ts_hexrotcomm 0.16
+* ts_hexrotcomm 0.20
 * ts_salobj 6.3
 * ts_simactuators 1
 * ts_idl 2.2
@@ -70,7 +70,7 @@ Changes:
 
 Requires:
 
-* ts_hexrotcomm 0.16
+* ts_hexrotcomm 0.20
 * ts_salobj 6.3
 * ts_simactuators 1
 * ts_idl 2.2
