@@ -136,8 +136,8 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             f"delta={abs(motors_data.torque[0] - desired_torque):0.8f}"
         )
         # DM-31447 uncomment when the low-level controller provides this data
-        # self.assertAlmostEqual(motors_data.current[0], desired_current)
-        self.assertAlmostEqual(motors_data.torque[0], desired_torque)
+        # self.assertAlmostEqual(motors_data.current[0], desired_current, delta=slop)  # noqa
+        self.assertAlmostEqual(motors_data.torque[0], desired_torque, delta=0.01)
         # The mock controller publishes exactly the same current and torque
         # for both motors (though that is not realistic).
         # DM-31447 uncomment when the low-level controller provides this data
@@ -621,38 +621,32 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             )
             slew_start_tai = salobj.current_tai()
 
-            async def track():
-                tai0 = salobj.current_tai()
-                while True:
-                    tai = salobj.current_tai()
-                    dt = tai - tai0
-                    pos = pos0 + vel * dt
-                    await self.remote.cmd_track.set_start(
-                        angle=pos, velocity=vel, tai=tai, timeout=STD_TIMEOUT
-                    )
-                    data = await self.remote.evt_target.next(
-                        flush=False, timeout=STD_TIMEOUT
-                    )
-                    self.assertAlmostEqual(data.position, pos)
-                    self.assertAlmostEqual(data.velocity, vel)
-                    self.assertAlmostEqual(data.tai, tai)
-                    await self.check_telemetry()
-                    await asyncio.sleep(0.1)
-
-            track_task = asyncio.create_task(track())
-            try:
-                data = await self.remote.evt_inPosition.next(
-                    flush=False, timeout=STD_TIMEOUT + est_slew_duration
+            while True:
+                tai = salobj.current_tai()
+                if tai - slew_start_tai > STD_TIMEOUT + est_slew_duration:
+                    self.fail("Slew did not end in time")
+                dt = tai - slew_start_tai
+                pos = pos0 + vel * dt
+                await self.remote.cmd_track.set_start(
+                    angle=pos, velocity=vel, tai=tai, timeout=STD_TIMEOUT
                 )
-                self.assertTrue(data.inPosition)
-            except asyncio.TimeoutError:
-                # It is likely the track task failed.
-                if track_task.done():
-                    self.fail(f"Tracking task failed: {track_task.exception()}")
-                else:
-                    self.fail("Timed out while waiting for the inPosition event")
-            finally:
-                track_task.cancel()
+                data = await self.remote.evt_target.next(
+                    flush=False, timeout=STD_TIMEOUT
+                )
+                self.assertAlmostEqual(data.tai, tai)
+                self.assertAlmostEqual(data.velocity, vel)
+                self.assertAlmostEqual(data.position, pos)
+                await self.check_telemetry()
+                await asyncio.sleep(0.1)
+                data = self.remote.evt_inPosition.get()
+                if data.inPosition:
+                    # Slew is done; success
+                    break
+            # Read the inPosition event from the queue, so we can await
+            # the expected false value after stopping tracking.
+            await self.assert_next_sample(
+                topic=self.remote.evt_inPosition, inPosition=True
+            )
 
             slew_duration = salobj.current_tai() - slew_start_tai
             print(f"Slew duration: {slew_duration:0.2f} seconds")
