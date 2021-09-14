@@ -38,7 +38,7 @@ class Config(ctypes.Structure):
         ("track_success_pos_threshold", ctypes.c_double),
         ("tracking_lost_timeout", ctypes.c_double),
     ]
-    FRAME_ID = 0x19
+    FRAME_ID = 0x2
 
 
 class Telemetry(ctypes.Structure):
@@ -59,8 +59,8 @@ class Telemetry(ctypes.Structure):
         ("latching_fault_status_register", ctypes.c_uint16),
         ("latching_fault_status_register_axis_b", ctypes.c_uint16),
         ("input_pin_states", ctypes.c_int32),
-        ("actual_torque_axis_a", ctypes.c_int16),
-        ("actual_torque_axis_b", ctypes.c_int16),
+        ("motor_torque_axis_a", ctypes.c_int16),
+        ("motor_torque_axis_b", ctypes.c_int16),
         ("copley_fault_status_register", ctypes.c_uint32 * 2),
         ("application_status", ctypes.c_uint32),
         # simulink telemetry
@@ -92,8 +92,8 @@ class Telemetry(ctypes.Structure):
         ("current_pos", ctypes.c_double),
         ("motor_pos_rad_ch_a", ctypes.c_double),
         ("motor_pos_rad_ch_b", ctypes.c_double),
-        ("drive_current_axis_a", ctypes.c_double),
-        ("drive_current_axis_b", ctypes.c_double),
+        ("motor_current_axis_a", ctypes.c_double),
+        ("motor_current_axis_b", ctypes.c_double),
         ("motor_initi_offset_a", ctypes.c_double),
         ("motor_initi_offset_b", ctypes.c_double),
         ("flags_initialization_complete", ctypes.c_double),
@@ -113,4 +113,4 @@ class Telemetry(ctypes.Structure):
         ("set_pos", ctypes.c_double),
         ("flags_no_new_track_cmd_error", ctypes.c_double),
     ]
-    FRAME_ID = 0x5
+    FRAME_ID = 0x0

@@ -6,17 +6,53 @@
 Version History
 ###############
 
+v0.17.0
+-------
+
+Changes:
+
+* Update for ts_xml 10.0, which is required.
+* Write new motors.torque, and rotation.odometer telemetry fields.
+
+Requires:
+
+* ts_rotator_controller 1.2.2
+* ts_hexrotcomm 0.20
+* ts_salobj 6.3
+* ts_simactuators 1
+* ts_idl 2.2
+* ts_xml 10
+* MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount`` using ts_xml 9
+
+v0.16.1
+-------
+
+Changes:
+
+* Fix incorrect frame IDs for messages from the low-level controller.
+
+Requires:
+
+* ts_rotator_controller 1.2.2
+* ts_hexrotcomm 0.20
+* ts_salobj 6.3
+* ts_simactuators 1
+* ts_idl 2.2
+* ts_xml 9
+* MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount`` using ts_xml 9
+
 v0.16.0
 -------
 
 Changes:
 
-* Update for new telemetry data from the low-level controller.
-  This version requires ts_rotator_controller v1.2.2.
+* Updated for ts_rotator_controller 1.2.2, which is required:
+  the telemetry data from the low-level controller now matches what is sent to the EUI.
 
 Requires:
 
-* ts_hexrotcomm 0.16
+* ts_rotator_controller 1.2.2
+* ts_hexrotcomm 0.20
 * ts_salobj 6.3
 * ts_simactuators 1
 * ts_idl 2.2
@@ -34,7 +70,8 @@ Changes:
 
 Requires:
 
-* ts_hexrotcomm 0.16
+* ts_rotator_controller 1.1.6
+* ts_hexrotcomm 0.20
 * ts_salobj 6.3
 * ts_simactuators 1
 * ts_idl 2.2
@@ -46,14 +83,13 @@ v0.15.0
 
 Changes:
 
-* Updated for ts_hexrotcomm 0.20 (which is required).
-  Messages from the low-level controller now contain TAI unix time instead of UTC.
-  Note that this requires a corresponding update to the low-level rotator controller
-  (see `DM-26451 <https://jira.lsstcorp.org/browse/DM-26451>`_)
+* Updated for ts_rotator_controller 1.1.6 and ts_hexrotcomm 0.20, both of which are required:
+  messages from low-level controller now contain TAI unix time instead of UTC in the header.
 
 Requires:
 
-* ts_hexrotcomm 0.16
+* ts_rotator_controller 1.1.6
+* ts_hexrotcomm 0.20
 * ts_salobj 6.3
 * ts_simactuators 1
 * ts_idl 2.2

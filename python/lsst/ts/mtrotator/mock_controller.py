@@ -74,12 +74,23 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
     *Known Limitations*
 
     * Constant-velocity motion is not supported.
-    * The path generator is very primitive; acceleration is presently
-      instantaneous. This could be improved by using code from
-      the ATMCS simulator.
-    * I am not sure what the real controller does if a track command is late;
-      for now the simulator goes into FAULT.
+    * The odometer resets to zero each time the mock controller is constructed.
+    * The motor current and torque are scaled versions of current acceleration,
+      with a wild guess as to scale.
+    * Motor current and torque exactly match for motors A and B.
+    * Many telemetry fields are not set at all.
     """
+
+    # Motor current (in A) per acceleration (in deg/sec^2).
+    # The value is arbitrary, because I have no idea what is realistic.
+    current_per_acceleration = 5
+
+    # Motor torque (in N-m) per acceleration (in deg/sec^2).
+    # Warning: the telemetry publishes an integer in units N-m/1e6
+    # but it simplfies unit tests to have this scale factor produce N-m,
+    # the units the CSC uses to publish the data in the motors event.
+    # The value is arbitrary, because I have no idea what is realistic.
+    torque_per_acceleration = 0.002
 
     def __init__(
         self,
@@ -93,6 +104,12 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         # Amplitude of jitter in measured position (deg),
         # to simulate encoder jitter.
         self.position_jitter = 0.000003
+
+        # Previous position (without jitter) (deg); used to set odometer.
+        self.previous_pos = None
+
+        # Approximate cumulative rotation, in deg
+        self.odometer = 0
 
         self.tracking_timed_out = False
         config = structs.Config()
@@ -270,6 +287,14 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
             curr_pos = curr_segment.position + self.position_jitter * (
                 random.random() - 0.5
             )
+            if self.previous_pos is not None:
+                self.odometer += abs(curr_segment.position - self.previous_pos)
+            self.previous_pos = curr_segment.position
+            motor_current = curr_segment.acceleration * self.current_per_acceleration
+            # Motor torque in output form: an integer in N-m/1e6
+            motor_torque_scaled = int(
+                curr_segment.acceleration * self.torque_per_acceleration * 1e6
+            )
             curr_pos_counts = self.encoder_resolution * curr_pos
             cmd_target = self.rotator.target.at(curr_tai)
             in_position = False
@@ -288,6 +313,11 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
             self.telemetry.current_pos = curr_pos
             self.telemetry.current_vel_ch_a_fb = curr_segment.velocity
             self.telemetry.current_vel_ch_b_fb = curr_segment.velocity
+            self.telemetry.motor_current_axis_a = motor_current
+            self.telemetry.motor_current_axis_b = motor_current
+            self.telemetry.motor_torque_axis_a = motor_torque_scaled
+            self.telemetry.motor_torque_axis_b = motor_torque_scaled
+            self.telemetry.rotator_odometer = self.odometer
             if self.telemetry.state == ControllerState.ENABLED:
                 # Use config parameter `track_success_pos_threshold` to
                 # compute `in_position`, instead of `self.rotator.path.kind`,
