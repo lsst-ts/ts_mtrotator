@@ -245,7 +245,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         await self.run_command(code=enums.CommandCode.CONFIG_VEL, param1=data.vlimit)
 
     async def do_enable(self, data):
-        self.assert_summary_state(salobj.State.DISABLED, isbefore=True)
+        self.assert_summary_state(salobj.State.DISABLED)
 
         # Make sure we have camera cable wrap telemetry (from MTMount),
         # and that it is recent enough to use for measuring following error.
