@@ -6,6 +6,27 @@
 Version History
 ###############
 
+v0.18.0
+-------
+
+Changes:
+
+* Updated for ts_hexrotcomm v0.22.0, which is required.
+  Fix a deprecation warning: stop specifying the `isbefore` argument when calling `assert_summary_state`.
+* Updated to use ts_utils, which is required.
+
+Requires:
+
+* ts_rotator_controller 1.2.2
+* ts_hexrotcomm 0.22
+* ts_utils 1
+* ts_salobj 6.3
+* ts_simactuators 1
+* ts_idl 2.2
+* ts_xml 10
+* MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount`` using ts_xml 9
+
+
 v0.17.0
 -------
 
