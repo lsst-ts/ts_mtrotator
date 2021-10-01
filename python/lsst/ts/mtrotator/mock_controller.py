@@ -24,7 +24,7 @@ import asyncio
 import math
 import random
 
-from lsst.ts import salobj
+from lsst.ts import utils
 from lsst.ts import hexrotcomm
 from lsst.ts import simactuators
 from lsst.ts.idl.enums.MTRotator import (
@@ -123,7 +123,7 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         config.tracking_lost_timeout = 5  # sec
         telemetry = structs.Telemetry()
         telemetry.set_pos = math.nan
-        self.tracking_timer_task = salobj.make_done_future()
+        self.tracking_timer_task = utils.make_done_future()
 
         self.rotator = simactuators.TrackingActuator(
             min_position=config.lower_pos_limit,
@@ -240,7 +240,7 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
                 "Must call POSITION_SET before calling MOVE_POINT_TO_POINT"
             )
         self.rotator.set_target(
-            tai=salobj.current_tai(), position=self.telemetry.set_pos, velocity=0
+            tai=utils.current_tai(), position=self.telemetry.set_pos, velocity=0
         )
         self.telemetry.enabled_substate = EnabledSubstate.MOVING_POINT_TO_POINT
         self.telemetry.flags_pt2pt_move_complete = 0
@@ -250,7 +250,7 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
 
     async def do_track_vel_cmd(self, command):
         tai, pos, vel = command.param1, command.param2, command.param3
-        dt = salobj.current_tai() - tai
+        dt = utils.current_tai() - tai
         curr_pos = pos + vel * dt
         if not self.config.lower_pos_limit <= curr_pos <= self.config.upper_pos_limit:
             self.set_state(ControllerState.FAULT)

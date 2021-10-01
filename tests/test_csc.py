@@ -23,6 +23,7 @@ import asyncio
 import contextlib
 import unittest
 
+from lsst.ts import utils
 from lsst.ts import hexrotcomm
 from lsst.ts import salobj
 from lsst.ts import mtrotator
@@ -213,7 +214,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 self.mock_ccw_task = asyncio.create_task(self.mock_ccw_loop())
             else:
                 print("do not run mock_ccw_loop")
-                self.mock_ccw_task = salobj.make_done_future()
+                self.mock_ccw_task = utils.make_done_future()
             if initial_state != modified_initial_state:
                 await self.remote.cmd_enable.start(timeout=STD_TIMEOUT)
                 await self.assert_next_summary_state(salobj.State.DISABLED)
@@ -241,7 +242,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                     flush=True, timeout=STD_TIMEOUT
                 )
 
-                ccw_tai = salobj.current_tai()
+                ccw_tai = utils.current_tai()
                 dt = ccw_tai - rotation_data.timestamp
                 ccw_position = (
                     rotation_data.demandPosition
@@ -519,15 +520,15 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 flush=False, timeout=STD_TIMEOUT
             )
             self.assertFalse(data.inPosition)
-            t0 = salobj.current_tai()
+            t0 = utils.current_tai()
             await self.remote.cmd_move.set_start(
                 position=destination, timeout=STD_TIMEOUT
             )
             data = await self.remote.evt_target.next(flush=False, timeout=STD_TIMEOUT)
-            target_event_delay = salobj.current_tai() - t0
+            target_event_delay = utils.current_tai() - t0
             self.assertAlmostEqual(data.position, destination)
             self.assertEqual(data.velocity, 0)
-            target_time_difference = salobj.current_tai() - data.tai
+            target_time_difference = utils.current_tai() - data.tai
             self.assertLessEqual(abs(target_time_difference), target_event_delay)
 
             for i in range(10):
@@ -541,7 +542,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 flush=False, timeout=STD_TIMEOUT + est_move_duration
             )
             self.assertTrue(data.inPosition)
-            print(f"Move duration: {salobj.current_tai() - t0:0.2f} seconds")
+            print(f"Move duration: {utils.current_tai() - t0:0.2f} seconds")
             await self.assert_next_sample(
                 topic=self.remote.evt_controllerState,
                 controllerState=ControllerState.ENABLED,
@@ -619,10 +620,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.SLEWING_OR_TRACKING,
             )
-            slew_start_tai = salobj.current_tai()
+            slew_start_tai = utils.current_tai()
 
             while True:
-                tai = salobj.current_tai()
+                tai = utils.current_tai()
                 if tai - slew_start_tai > STD_TIMEOUT + est_slew_duration:
                     self.fail("Slew did not end in time")
                 dt = tai - slew_start_tai
@@ -648,7 +649,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 topic=self.remote.evt_inPosition, inPosition=True
             )
 
-            slew_duration = salobj.current_tai() - slew_start_tai
+            slew_duration = utils.current_tai() - slew_start_tai
             print(f"Slew duration: {slew_duration:0.2f} seconds")
 
             await self.remote.cmd_stop.start(timeout=STD_TIMEOUT)
@@ -685,7 +686,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             )
 
             # Run these quickly enough and the controller will still be enabled
-            curr_tai = salobj.current_tai()
+            curr_tai = utils.current_tai()
             for pos, vel, tai in (
                 # Position out of range.
                 (settings.positionAngleLowerLimit - 0.001, 0, curr_tai),
@@ -710,7 +711,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                     await self.remote.cmd_track.set_start(
                         angle=0,
                         velocity=0,
-                        tai=salobj.current_tai(),
+                        tai=utils.current_tai(),
                         timeout=STD_TIMEOUT,
                     )
                     await asyncio.sleep(0.01)
@@ -745,7 +746,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
 
             # Send a tracking position
             await self.remote.cmd_track.set_start(
-                angle=0, velocity=0, tai=salobj.current_tai(), timeout=STD_TIMEOUT
+                angle=0, velocity=0, tai=utils.current_tai(), timeout=STD_TIMEOUT
             )
 
             # Wait a bit longer than usual to allow the tracking timer
@@ -793,7 +794,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
 
             # Immediately send a track commands (not giving the CSC time to see
             # the changed controller state), as explained in the doc string.
-            curr_tai = salobj.current_tai()
+            curr_tai = utils.current_tai()
             await self.remote.cmd_track.set_start(
                 angle=0, velocity=0, tai=curr_tai, timeout=STD_TIMEOUT
             )
@@ -878,7 +879,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             )
             # Give enough slop for the timestamp to handle clock jitter
             # on Docker on macOS.
-            self.assertAlmostEqual(data.timestamp, salobj.current_tai(), delta=0.2)
+            self.assertAlmostEqual(data.timestamp, utils.current_tai(), delta=0.2)
             if abs(data.positionError - position_error) < delta_position:
                 break
         self.assertAlmostEqual(data.velocityError, velocity_error, delta_velocity)
