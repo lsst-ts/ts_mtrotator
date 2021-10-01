@@ -23,6 +23,7 @@ __all__ = ["RotatorCsc"]
 
 import asyncio
 
+from lsst.ts import utils
 from lsst.ts import salobj
 from lsst.ts import hexrotcomm
 from lsst.ts.idl.enums.MTRotator import EnabledSubstate, ApplicationStatus
@@ -98,7 +99,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # has been too large.
         self._num_ccw_following_errors = 0
 
-        self._check_ccw_following_error_task = salobj.make_done_future()
+        self._check_ccw_following_error_task = utils.make_done_future()
         self._reported_ccw_following_error_issue = False
         self._faulting = False
         self._prev_flags_tracking_success = False
@@ -245,7 +246,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         await self.run_command(code=enums.CommandCode.CONFIG_VEL, param1=data.vlimit)
 
     async def do_enable(self, data):
-        self.assert_summary_state(salobj.State.DISABLED, isbefore=True)
+        self.assert_summary_state(salobj.State.DISABLED)
 
         # Make sure we have camera cable wrap telemetry (from MTMount),
         # and that it is recent enough to use for measuring following error.
@@ -291,7 +292,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         self.evt_target.set_put(
             position=data.position,
             velocity=0,
-            tai=salobj.current_tai(),
+            tai=utils.current_tai(),
             force_output=True,
         )
 
@@ -318,7 +319,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                     f"{self.server.telemetry.enabled_substate} "
                     f"instead of {EnabledSubstate.SLEWING_OR_TRACKING}"
                 )
-        dt = data.tai - salobj.current_tai()
+        dt = data.tai - utils.current_tai()
         curr_pos = data.angle + data.velocity * dt
         if (
             not self.server.config.lower_pos_limit
