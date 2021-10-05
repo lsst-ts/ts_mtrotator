@@ -50,7 +50,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         This is provided for unit testing.
     initial_state : `lsst.ts.salobj.State` or `int` (optional)
         The initial state of the CSC.
-        Must be `lsst.ts.salobj.State.OFFLINE` unless simulating
+        Must be `lsst.ts.salobj.State.STANDBY` unless simulating
         (``simulation_mode != 0``).
     simulation_mode : `int` (optional)
         Simulation mode. Allowed values:
@@ -61,7 +61,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     Raises
     ------
     ValueError
-        If ``initial_state != lsst.ts.salobj.State.OFFLINE``
+        If ``initial_state != lsst.ts.salobj.State.STANDBY``
         and not simulating (``simulation_mode = 0``).
 
     Notes
@@ -69,23 +69,15 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     **Error Codes**
 
     The error codes are described in `ErrorCode`.
-
-    This CSC is unusual in several respect:
-
-    * It acts as a server (not a client) for a low level controller
-      (because that is how the low level controller is written).
-    * The low level controller maintains the summary state and detailed state
-      (that's why this code inherits from Controller instead of BaseCsc).
-    * The simulation mode can only be set at construction time.
     """
 
     valid_simulation_modes = [0, 1]
     version = __version__
 
     def __init__(
-        self, config_dir=None, initial_state=salobj.State.OFFLINE, simulation_mode=0
+        self, config_dir=None, initial_state=salobj.State.STANDBY, simulation_mode=0
     ):
-        self.server = None
+        self.client = None
         self.mock_ctrl = None
 
         # Set this to 2 when trackStart is called, then decrement
@@ -108,7 +100,6 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         super().__init__(
             name="MTRotator",
             index=0,
-            port=constants.TELEMETRY_PORT,
             sync_pattern=constants.ROTATOR_SYNC_PATTERN,
             CommandCode=enums.CommandCode,
             ConfigClass=structs.Config,
@@ -144,13 +135,11 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             if ccw_data is None:
                 err_msg = "Cannot read cameraCableWrap telemetry"
                 if self.summary_state == salobj.State.ENABLED:
-                    await self.afault(
-                        code=enums.ErrorCode.CCW_NO_TELEMETRY, report=err_msg
-                    )
+                    self.log.error(err_msg)
+                    await self.command_llv_fault()
                 elif not self._reported_ccw_following_error_issue:
                     self.log.warning(err_msg)
                     self._reported_ccw_following_error_issue = True
-
                 return
 
             dt = rot_tai - ccw_data.timestamp
@@ -160,9 +149,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                     f"dt={dt}; abs(dt) > {MAX_CCW_TELEMETRY_AGE}"
                 )
                 if self.summary_state == salobj.State.ENABLED:
-                    await self.afault(
-                        code=enums.ErrorCode.CCW_NO_TELEMETRY, report=err_msg
-                    )
+                    self.log.error(err_msg)
+                    await self.command_llv_fault()
                 elif not self._reported_ccw_following_error_issue:
                     self.log.warning(err_msg)
                     self._reported_ccw_following_error_issue = True
@@ -191,38 +179,38 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                     self._num_ccw_following_errors
                     >= self.config.num_ccw_following_errors
                 ):
-                    await self.afault(
-                        code=enums.ErrorCode.CCW_FOLLOWING_ERROR,
-                        report=f"Camera cable wrap not following closely enough: "
+                    self.log.error(
+                        f"Camera cable wrap not following closely enough: "
                         f"error # {self._num_ccw_following_errors} = {following_error} "
-                        f"> {self.config.max_ccw_following_error} deg",
+                        f"> {self.config.max_ccw_following_error} deg"
                     )
+                    await self.command_llv_fault()
         except Exception:
             self.log.exception("check_ccw_following_error failed")
 
     async def configure(self, config):
         self.config = config
 
-    def config_callback(self, server):
+    def config_callback(self, client):
         """Called when the TCP/IP controller outputs configuration.
 
         Parameters
         ----------
-        server : `lsst.ts.hexrotcomm.CommandTelemetryServer`
-            TCP/IP server.
+        client : `lsst.ts.hexrotcomm.CommandTelemetryClient`
+            TCP/IP client.
         """
         self.evt_configuration.set_put(
-            positionAngleUpperLimit=server.config.upper_pos_limit,
-            velocityLimit=server.config.velocity_limit,
-            accelerationLimit=server.config.accel_limit,
-            positionAngleLowerLimit=server.config.lower_pos_limit,
-            followingErrorThreshold=server.config.following_error_threshold,
-            trackingSuccessPositionThreshold=server.config.track_success_pos_threshold,
-            trackingLostTimeout=server.config.tracking_lost_timeout,
+            positionAngleUpperLimit=client.config.upper_pos_limit,
+            velocityLimit=client.config.velocity_limit,
+            accelerationLimit=client.config.accel_limit,
+            positionAngleLowerLimit=client.config.lower_pos_limit,
+            followingErrorThreshold=client.config.following_error_threshold,
+            trackingSuccessPositionThreshold=client.config.track_success_pos_threshold,
+            trackingLostTimeout=client.config.tracking_lost_timeout,
         )
 
-    def connect_callback(self, server):
-        super().connect_callback(server)
+    def connect_callback(self, client):
+        super().connect_callback(client)
         # Always reset this counter; if newly connected then we'll start
         # accumulating the count and otherwise it makes no difference.
         self._num_ccw_following_errors = 0
@@ -264,7 +252,10 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     async def do_fault(self, data):
         if self.summary_state != salobj.State.ENABLED:
             raise salobj.ExpectedError("Not enabled")
-        await self.afault(code=enums.ErrorCode.FAULT_COMMAND, report="fault command")
+        self.log.warning(
+            "fault command issued; sending low-level controller to FAULT state"
+        )
+        await self.command_llv_fault()
 
     async def do_move(self, data):
         """Go to the position specified by the most recent ``positionSet``
@@ -272,14 +263,14 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         """
         self.assert_enabled_substate(EnabledSubstate.STATIONARY)
         if (
-            not self.server.config.lower_pos_limit
+            not self.client.config.lower_pos_limit
             <= data.position
-            <= self.server.config.upper_pos_limit
+            <= self.client.config.upper_pos_limit
         ):
             raise salobj.ExpectedError(
                 f"position {data.position} not in range "
-                f"[{self.server.config.lower_pos_limit}, "
-                f"{self.server.config.upper_pos_limit}]"
+                f"[{self.client.config.lower_pos_limit}, "
+                f"{self.client.config.upper_pos_limit}]"
             )
         cmd1 = self.make_command(
             code=enums.CommandCode.POSITION_SET, param1=data.position
@@ -310,31 +301,31 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         if self.summary_state != salobj.State.ENABLED:
             raise salobj.ExpectedError("Not enabled")
         if (
-            self.server.telemetry.enabled_substate
+            self.client.telemetry.enabled_substate
             != EnabledSubstate.SLEWING_OR_TRACKING
         ):
             if self._tracking_started_telemetry_counter <= 0:
                 raise salobj.ExpectedError(
                     "Low-level controller in substate "
-                    f"{self.server.telemetry.enabled_substate} "
+                    f"{self.client.telemetry.enabled_substate} "
                     f"instead of {EnabledSubstate.SLEWING_OR_TRACKING}"
                 )
         dt = data.tai - utils.current_tai()
         curr_pos = data.angle + data.velocity * dt
         if (
-            not self.server.config.lower_pos_limit
+            not self.client.config.lower_pos_limit
             <= curr_pos
-            <= self.server.config.upper_pos_limit
+            <= self.client.config.upper_pos_limit
         ):
             raise salobj.ExpectedError(
                 f"current position {curr_pos} not in range "
-                f"[{self.server.config.lower_pos_limit}, "
-                f"{self.server.config.upper_pos_limit}]"
+                f"[{self.client.config.lower_pos_limit}, "
+                f"{self.client.config.upper_pos_limit}]"
             )
-        if not abs(data.velocity) <= self.server.config.velocity_limit:
+        if not abs(data.velocity) <= self.client.config.velocity_limit:
             raise salobj.ExpectedError(
                 f"abs(velocity={data.velocity}) > "
-                f"[{self.server.config.velocity_limit}"
+                f"[{self.client.config.velocity_limit}"
             )
         await self.run_command(
             code=enums.CommandCode.TRACK_VEL_CMD,
@@ -359,28 +350,10 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         )
         self._tracking_started_telemetry_counter = 2
 
-    async def afault(self, code, report, traceback=""):
-        """Enter the fault state and output the ``errorCode`` event.
-
-        This is an asynchronous version of the standard fault method
-        `lsst.ts.salobj.BaseCsc.fault`. Note that the standard version
-        does not work for MTRotator (and raises `NotImplementedError`)
-        because the summary state is kept in the low-level controller.
-
-        Parameters
-        ----------
-        code : `int`
-            Error code for the ``errorCode`` event.
-            If `None` then ``errorCode`` is not output and you should
-            output it yourself. Specifying `None` is deprecated;
-            please always specify an integer error code.
-        report : `str`
-            Description of the error.
-        traceback : `str`, optional
-            Description of the traceback, if any.
-        """
+    async def command_llv_fault(self):
+        """Command the low-level controller to go to fault state."""
         if self._faulting:
-            self.log.debug("Fault called, but already faulting")
+            self.log.debug("command_llv_fault called, but already faulting")
             return
 
         self.log.debug("Sending the low-level controller to fault state")
@@ -390,27 +363,15 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         finally:
             self._faulting = False
 
-        try:
-            self.evt_errorCode.set_put(
-                errorCode=code,
-                errorReport=report,
-                traceback=traceback,
-                force_output=True,
-            )
-        except Exception:
-            self.log.exception(
-                f"Failed to output errorCode: code={code!r}; report={report!r}"
-            )
-
-    def telemetry_callback(self, server):
+    def telemetry_callback(self, client):
         """Called when the TCP/IP controller outputs telemetry.
 
         Parameters
         ----------
-        server : `lsst.ts.hexrotcomm.CommandTelemetryServer`
-            TCP/IP server.
+        client : `lsst.ts.hexrotcomm.CommandTelemetryClient`
+            TCP/IP client.
         """
-        tai_unix = server.header.tai_sec + server.header.tai_nsec / 1e9
+        tai_unix = client.header.tai_sec + client.header.tai_nsec / 1e9
         if self._tracking_started_telemetry_counter > 0:
             self._tracking_started_telemetry_counter -= 1
         self.evt_summaryState.set_put(summaryState=self.summary_state)
@@ -418,82 +379,82 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # are all floats from the controller. But they should only have
         # integer value, so I output them as integers.
         self.evt_controllerState.set_put(
-            controllerState=int(server.telemetry.state),
-            offlineSubstate=int(server.telemetry.offline_substate),
-            enabledSubstate=int(server.telemetry.enabled_substate),
-            applicationStatus=server.telemetry.application_status,
+            controllerState=int(client.telemetry.state),
+            offlineSubstate=int(client.telemetry.offline_substate),
+            enabledSubstate=int(client.telemetry.enabled_substate),
+            applicationStatus=client.telemetry.application_status,
         )
 
         self.tel_rotation.set_put(
-            demandPosition=server.telemetry.demand_pos,
-            demandVelocity=server.telemetry.demand_vel,
-            demandAcceleration=server.telemetry.demand_accel,
-            actualPosition=server.telemetry.current_pos,
+            demandPosition=client.telemetry.demand_pos,
+            demandVelocity=client.telemetry.demand_vel,
+            demandAcceleration=client.telemetry.demand_accel,
+            actualPosition=client.telemetry.current_pos,
             actualVelocity=(
-                server.telemetry.current_vel_ch_a_fb
-                + server.telemetry.current_vel_ch_b_fb
+                client.telemetry.current_vel_ch_a_fb
+                + client.telemetry.current_vel_ch_b_fb
             )
             / 2,
-            debugActualVelocityA=server.telemetry.current_vel_ch_a_fb,
-            debugActualVelocityB=server.telemetry.current_vel_ch_b_fb,
-            odometer=server.telemetry.rotator_odometer,
+            debugActualVelocityA=client.telemetry.current_vel_ch_a_fb,
+            debugActualVelocityB=client.telemetry.current_vel_ch_b_fb,
+            odometer=client.telemetry.rotator_odometer,
             timestamp=tai_unix,
         )
         self.tel_electrical.set_put(
             copleyStatusWordDrive=[
-                server.telemetry.status_word_drive0,
-                server.telemetry.status_word_drive0_axis_b,
+                client.telemetry.status_word_drive0,
+                client.telemetry.status_word_drive0_axis_b,
             ],
             copleyLatchingFaultStatus=[
-                server.telemetry.latching_fault_status_register,
-                server.telemetry.latching_fault_status_register_axis_b,
+                client.telemetry.latching_fault_status_register,
+                client.telemetry.latching_fault_status_register_axis_b,
             ],
         )
         self.tel_motors.set_put(
             calibrated=[
-                server.telemetry.ch_a_fb,
-                server.telemetry.ch_b_fb,
+                client.telemetry.ch_a_fb,
+                client.telemetry.ch_b_fb,
             ],
             raw=[
-                server.telemetry.motor_encoder_ch_a,
-                server.telemetry.motor_encoder_ch_b,
+                client.telemetry.motor_encoder_ch_a,
+                client.telemetry.motor_encoder_ch_b,
             ],
             # DM-31447 Uncomment when the low-level controller provides
             # this data (right now the fields are always zero).
             # current=[
-            #     server.telemetry.motor_current_axis_a,
-            #     server.telemetry.motor_current_axis_b,
+            #     client.telemetry.motor_current_axis_a,
+            #     client.telemetry.motor_current_axis_b,
             # ],
             # The torque from the low-level controller is N-m/1e6
             # (and is an integer); convert it to N-m
             torque=[
-                server.telemetry.motor_torque_axis_a / 1e6,
-                server.telemetry.motor_torque_axis_b / 1e6,
+                client.telemetry.motor_torque_axis_a / 1e6,
+                client.telemetry.motor_torque_axis_b / 1e6,
             ],
         )
 
         self.evt_inPosition.set_put(
             inPosition=bool(
-                server.telemetry.flags_move_success
-                or server.telemetry.flags_tracking_success
+                client.telemetry.flags_move_success
+                or client.telemetry.flags_tracking_success
             )
         )
 
         self.evt_commandableByDDS.set_put(
             state=bool(
-                server.telemetry.application_status
+                client.telemetry.application_status
                 & ApplicationStatus.DDS_COMMAND_SOURCE
             ),
         )
 
         self.evt_tracking.set_put(
-            tracking=bool(server.telemetry.flags_tracking_success),
-            lost=bool(server.telemetry.flags_tracking_lost),
-            noNewCommand=bool(server.telemetry.flags_no_new_track_cmd_error),
+            tracking=bool(client.telemetry.flags_tracking_success),
+            lost=bool(client.telemetry.flags_tracking_lost),
+            noNewCommand=bool(client.telemetry.flags_no_new_track_cmd_error),
         )
 
         safety_interlock = (
-            server.telemetry.application_status & ApplicationStatus.SAFETY_INTERLOCK
+            client.telemetry.application_status & ApplicationStatus.SAFETY_INTERLOCK
         )
         self.evt_interlock.set_put(
             detail="Engaged" if safety_interlock else "Disengaged",
@@ -509,8 +470,6 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     def make_mock_controller(self, initial_ctrl_state):
         return mock_controller.MockMTRotatorController(
             log=self.log,
-            host=self.server.host,
+            port=0,
             initial_state=initial_ctrl_state,
-            command_port=self.server.command_port,
-            telemetry_port=self.server.telemetry_port,
         )

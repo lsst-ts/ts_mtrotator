@@ -43,19 +43,18 @@ class CommandCode(enum.IntEnum):
 
 
 class ErrorCode(enum.IntEnum):
-    """`MTRotatorCsc` error codes."""
+    """`MTRotatorCsc` error codes.
 
-    COMMUNICATION_ERROR = 1
-    """Error communicating with the low-level controller."""
+    The values are:
 
-    CCW_FOLLOWING_ERROR = enum.auto()
-    """The camera cable wrap angle is too far from the rotator angle."""
+    * `CONTROLLER_FAULT`: The low-level controller went to fault state.
+      Note that the CSC will trigger this if the camera cable wrap is not
+      following closely enough, or if a user issues the ``fault`` command.
+    * `CONNECTION_LOST`: Communication lost to the low-level controller.
+    """
 
-    CCW_NO_TELEMETRY = enum.auto()
-    """Camera cable wrap telemetry not seen."""
-
-    FAULT_COMMAND = enum.auto()
-    """The fault command was issued."""
+    CONTROLLER_FAULT = 1
+    CONNECTION_LOST = 2
 
 
 class SetEnabledSubstateParam(enum.IntEnum):
