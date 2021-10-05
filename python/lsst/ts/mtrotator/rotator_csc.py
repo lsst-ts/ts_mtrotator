@@ -68,7 +68,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     -----
     **Error Codes**
 
-    The error codes are described in `ErrorCode`.
+    See `lsst.ts.idl.enums.MTRotator.ErrorCode`
     """
 
     valid_simulation_modes = [0, 1]

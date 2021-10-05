@@ -27,7 +27,7 @@ from lsst.ts import utils
 from lsst.ts import hexrotcomm
 from lsst.ts import salobj
 from lsst.ts import mtrotator
-from lsst.ts.idl.enums.MTRotator import ControllerState, EnabledSubstate
+from lsst.ts.idl.enums.MTRotator import ControllerState, EnabledSubstate, ErrorCode
 
 STD_TIMEOUT = 30  # timeout for command ack
 
@@ -320,7 +320,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
-                errorCode=mtrotator.ErrorCode.CONTROLLER_FAULT,
+                errorCode=ErrorCode.CONTROLLER_FAULT,
             )
 
             # Test that ccwFollowingError is still output in FAULT state
@@ -354,7 +354,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
-                errorCode=mtrotator.ErrorCode.CONTROLLER_FAULT,
+                errorCode=ErrorCode.CONTROLLER_FAULT,
             )
 
             # Zero the following error and re-enable the CSC.
@@ -378,7 +378,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
-                errorCode=mtrotator.ErrorCode.CONTROLLER_FAULT,
+                errorCode=ErrorCode.CONTROLLER_FAULT,
             )
 
     async def test_transient_excessive_ccw_following_error(self):
@@ -403,7 +403,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
-                errorCode=mtrotator.ErrorCode.CONTROLLER_FAULT,
+                errorCode=ErrorCode.CONTROLLER_FAULT,
             )
 
     async def test_fault(self):
@@ -423,7 +423,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
-                errorCode=mtrotator.ErrorCode.CONTROLLER_FAULT,
+                errorCode=ErrorCode.CONTROLLER_FAULT,
             )
             await self.assert_next_sample(
                 topic=self.remote.evt_controllerState,

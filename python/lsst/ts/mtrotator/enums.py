@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["CommandCode", "ErrorCode", "SetEnabledSubstateParam"]
+__all__ = ["CommandCode", "SetEnabledSubstateParam"]
 
 import enum
 
@@ -40,21 +40,6 @@ class CommandCode(enum.IntEnum):
     CONFIG_VEL = 0x9001
     CONFIG_ACCEL = 0x9002
     TRACK_VEL_CMD = 0x9031
-
-
-class ErrorCode(enum.IntEnum):
-    """`MTRotatorCsc` error codes.
-
-    The values are:
-
-    * `CONTROLLER_FAULT`: The low-level controller went to fault state.
-      Note that the CSC will trigger this if the camera cable wrap is not
-      following closely enough, or if a user issues the ``fault`` command.
-    * `CONNECTION_LOST`: Communication lost to the low-level controller.
-    """
-
-    CONTROLLER_FAULT = 1
-    CONNECTION_LOST = 2
 
 
 class SetEnabledSubstateParam(enum.IntEnum):
