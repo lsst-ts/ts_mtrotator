@@ -49,16 +49,26 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
     ----------
     log : `logging.Logger`
         Logger.
-    host : `str` (optional)
-        IP address of CSC server.
-    command_port : `int` (optional)
-        Command socket port.  This argument is intended for unit tests;
-        use the default value for normal operation.
-    telemetry_port : `int` (optional)
-        Telemetry socket port. This argument is intended for unit tests;
-        use the default value for normal operation.
+    port : `int` (optional)
+        Port for telemetry and configuration;
+        if nonzero then the command port will be one larger.
+        Specify 0 to choose random values for both ports;
+        this is recommended for unit tests, to avoid collision
+        with other tests.
+        Do not specify 0 with host=None (see Raises section).
+    host : `str` or `None`, optional
+        IP address for this server. Typically "127.0.0.1" (the default)
+        for an IPV4 server and "::" for an IPV6 server.
+        If `None` then bind to all network interfaces and run both
+        IPV4 and IPV6 servers.
+        Do not specify `None` with port=0 (see Raises section).
     initial_state : `lsst.ts.idl.enums.MTRotator.ControllerState` (optional)
         Initial state of mock controller.
+
+    Raises
+    ------
+    ValueError
+        If host=None and port=0. See `CommandTelemetryServer` for details.
 
     Notes
     -----
@@ -95,8 +105,8 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
     def __init__(
         self,
         log,
-        host=hexrotcomm.LOCAL_HOST,
         port=0,
+        host=hexrotcomm.LOCAL_HOST,
         initial_state=ControllerState.OFFLINE,
     ):
         self.encoder_resolution = 200_000  # counts/deg; arbitrary
