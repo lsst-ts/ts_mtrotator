@@ -54,8 +54,8 @@ properties:
     default: 10.9.57.229
   port:
     description: >-
-      Command port number of the TCP/IP interface.
-      The telemetry port is one larger.
+      Telemetry port number of the TCP/IP interface.
+      The command port is one larger.
     type: integer
     default: 5570
   connection_timeout:
