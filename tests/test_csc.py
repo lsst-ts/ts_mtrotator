@@ -27,7 +27,7 @@ from lsst.ts import utils
 from lsst.ts import hexrotcomm
 from lsst.ts import salobj
 from lsst.ts import mtrotator
-from lsst.ts.idl.enums.MTRotator import ControllerState, EnabledSubstate
+from lsst.ts.idl.enums.MTRotator import ControllerState, EnabledSubstate, ErrorCode
 
 STD_TIMEOUT = 30  # timeout for command ack
 
@@ -148,7 +148,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
     @contextlib.asynccontextmanager
     async def make_csc(
         self,
-        initial_state=salobj.State.OFFLINE,
+        initial_state=salobj.State.STANDBY,
         config_dir=None,
         simulation_mode=1,
         log_level=None,
@@ -215,13 +215,21 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             else:
                 print("do not run mock_ccw_loop")
                 self.mock_ccw_task = utils.make_done_future()
-            if initial_state != modified_initial_state:
+            if initial_state == salobj.State.ENABLED:
                 await self.remote.cmd_enable.start(timeout=STD_TIMEOUT)
                 await self.assert_next_summary_state(salobj.State.DISABLED)
-                await self.assert_next_sample(
-                    topic=self.remote.evt_controllerState,
-                    controllerState=ControllerState.DISABLED,
-                )
+                # Wait for and check the intermediate controller state,
+                # so unit test code only needs to check the final state
+                # (don't swallow the final state, for backwards compatibility).
+                for controller_state in (
+                    ControllerState.OFFLINE,
+                    ControllerState.STANDBY,
+                    ControllerState.DISABLED,
+                ):
+                    await self.assert_next_sample(
+                        topic=self.remote.evt_controllerState,
+                        controllerState=controller_state,
+                    )
             try:
                 yield
             finally:
@@ -312,23 +320,11 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
-                errorCode=mtrotator.ErrorCode.CCW_NO_TELEMETRY,
+                errorCode=ErrorCode.CONTROLLER_FAULT,
             )
 
-            # Test that ccwFollowingError is still output in FAULT and STANDBY
+            # Test that ccwFollowingError is still output in FAULT state
             self.mock_ccw_task = asyncio.create_task(self.mock_ccw_loop())
-            data = await self.remote.tel_ccwFollowingError.next(
-                flush=True, timeout=STD_TIMEOUT
-            )
-            self.assertAlmostEqual(
-                data.positionError, 0, delta=STD_FOLLOWING_DELTA_POSITION
-            )
-            self.assertAlmostEqual(
-                data.velocityError, 0, delta=STD_FOLLOWING_DELTA_VELOCITY
-            )
-
-            await self.remote.cmd_clearError.start(timeout=STD_TIMEOUT)
-            await self.assert_next_summary_state(salobj.State.STANDBY)
             data = await self.remote.tel_ccwFollowingError.next(
                 flush=True, timeout=STD_TIMEOUT
             )
@@ -358,13 +354,11 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
-                errorCode=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
+                errorCode=ErrorCode.CONTROLLER_FAULT,
             )
 
             # Zero the following error and re-enable the CSC.
             self.ccw_following_error = 0
-            await self.remote.cmd_clearError.start(timeout=STD_TIMEOUT)
-            await self.assert_next_summary_state(salobj.State.STANDBY)
             states = await salobj.set_summary_state(
                 self.remote, state=salobj.State.ENABLED
             )
@@ -384,7 +378,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
-                errorCode=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
+                errorCode=ErrorCode.CONTROLLER_FAULT,
             )
 
     async def test_transient_excessive_ccw_following_error(self):
@@ -409,7 +403,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
-                errorCode=mtrotator.ErrorCode.CCW_FOLLOWING_ERROR,
+                errorCode=ErrorCode.CONTROLLER_FAULT,
             )
 
     async def test_fault(self):
@@ -420,26 +414,53 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 subsystemVersions="",
             )
             await self.assert_next_summary_state(salobj.State.ENABLED)
+            await self.assert_next_sample(
+                topic=self.remote.evt_controllerState,
+                controllerState=ControllerState.ENABLED,
+            )
+
             await self.remote.cmd_fault.start(timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
                 self.remote.evt_errorCode,
-                errorCode=mtrotator.ErrorCode.FAULT_COMMAND,
+                errorCode=ErrorCode.CONTROLLER_FAULT,
+            )
+            await self.assert_next_sample(
+                topic=self.remote.evt_controllerState,
+                controllerState=ControllerState.FAULT,
             )
 
             # Make sure the fault command only works in enabled state
             with salobj.assertRaisesAckError():
                 await self.remote.cmd_fault.start(timeout=STD_TIMEOUT)
 
-            await self.remote.cmd_clearError.start(timeout=STD_TIMEOUT)
+            # Test recovery from fault state
+            await self.remote.cmd_standby.set_start(timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.STANDBY)
             with salobj.assertRaisesAckError():
                 await self.remote.cmd_fault.start(timeout=STD_TIMEOUT)
 
-            await self.remote.cmd_start.start(timeout=STD_TIMEOUT)
+            await self.remote.cmd_start.set_start(timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.DISABLED)
             with salobj.assertRaisesAckError():
                 await self.remote.cmd_fault.start(timeout=STD_TIMEOUT)
+
+            await self.remote.cmd_enable.set_start(timeout=STD_TIMEOUT)
+            await self.assert_next_summary_state(salobj.State.ENABLED)
+            for controller_state in (
+                ControllerState.OFFLINE,
+                ControllerState.STANDBY,
+                ControllerState.DISABLED,
+            ):
+                await self.assert_next_sample(
+                    topic=self.remote.evt_controllerState,
+                    controllerState=controller_state,
+                )
+            await self.assert_next_sample(
+                topic=self.remote.evt_controllerState,
+                controllerState=ControllerState.ENABLED,
+                enabledSubstate=EnabledSubstate.STATIONARY,
+            )
 
     async def test_standard_state_transitions(self):
         enabled_commands = (

@@ -42,17 +42,10 @@ Then check that the CSC has control of the low-level controller, as follows:
 Notes
 -----
 
-* To recover from the ``FAULT`` state (after fixing whatever is wrong) issue the ``clearError`` command.
-  This will transition to the ``STANDBY`` state.
+* To recover from the ``FAULT`` state (after fixing whatever is wrong) issue the ``standby``, ``start``, and ``enable`` commands.
 
-* The low-level controller maintains the CSC summary state,
-  so the CSC reports a summary state of ``OFFLINE`` until it receives telemetry from the low-level controller.
-  Thus the CSC may transition from ``OFFLINE`` to almost any other state as it starts up.
+* Communication between the low-level controller and CSC is a bit unusual:
 
-* Communication between the low-level controller and CSC is quite unusual:
-
-  * The low-level controller connects to a TCP/IP *server* in the CSC.
-    Thus the low-level controller must be configured with the TCP/IP address of the CSC.
   * The low-level controller does not acknowledge commands in any way.
     Thus the CSC must try to predict whether the low-level controller can execute a command and reject the command if not.
     Unfortunately this prediction cannot be completely accurate.

@@ -36,6 +36,9 @@ class ValidationTestCase(unittest.TestCase):
         self.default = dict(
             max_ccw_following_error=2.2,
             num_ccw_following_errors=3,
+            host="10.9.57.229",
+            port=5570,
+            connection_timeout=10,
         )
 
     def test_default(self):
@@ -62,6 +65,9 @@ class ValidationTestCase(unittest.TestCase):
         data = dict(
             max_ccw_following_error=1.5,
             num_ccw_following_errors=1,
+            host="foo.bar",
+            port=25,
+            connection_timeout=0.5,
         )
         data_copy = data.copy()
         result = self.validator.validate(data)
