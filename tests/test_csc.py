@@ -142,8 +142,8 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         # The mock controller publishes exactly the same current and torque
         # for both motors (though that is not realistic).
         # DM-31447 uncomment when the low-level controller provides this data
-        # self.assertEqual(motors_data.current[0], motors_data.current[1])
-        self.assertEqual(motors_data.torque[0], motors_data.torque[1])
+        # assert motors_data.current[0] ==  motors_data.current[1]
+        assert motors_data.torque[0] == motors_data.torque[1]
 
     @contextlib.asynccontextmanager
     async def make_csc(
@@ -312,7 +312,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             delay = self.csc.mock_ctrl.telemetry_interval * 5
             print(f"Sleep for {delay} seconds, then cancel the mock CCW output")
             await asyncio.sleep(delay)
-            self.assertEqual(self.csc.summary_state, salobj.State.ENABLED)
+            assert self.csc.summary_state == salobj.State.ENABLED
 
             # Stop the telemetry. The CSC should soon go to FAULT.
             self.enable_mock_ccw_telemetry = False
@@ -345,7 +345,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             delay = self.csc.mock_ctrl.telemetry_interval * 5
             await asyncio.sleep(delay)
             await self.assert_next_ccw_following_error()
-            self.assertEqual(self.csc.summary_state, salobj.State.ENABLED)
+            assert self.csc.summary_state == salobj.State.ENABLED
 
             # Specify excessive positive following error;
             # the CSC should shortly be disabled.
@@ -369,7 +369,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # Wait a bit; the CSC should still be enabled
             await asyncio.sleep(WAIT_FOR_CCW_DELAY)
             await self.assert_next_ccw_following_error()
-            self.assertEqual(self.csc.summary_state, salobj.State.ENABLED)
+            assert self.csc.summary_state == salobj.State.ENABLED
 
             # Specify excessive negative following error;
             # the CSC should shortly be disabled.
@@ -392,7 +392,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 self.csc.config.max_ccw_following_error + 0.1
             )
             await asyncio.sleep(WAIT_FOR_CCW_DELAY)
-            self.assertEqual(self.csc.summary_state, salobj.State.ENABLED)
+            assert self.csc.summary_state == salobj.State.ENABLED
 
             # Set the # of fails to 1 and try again;
             # this time a single transient should cause failure.
@@ -535,7 +535,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.STATIONARY,
             )
-            self.assertEqual(self.csc.mock_ctrl.odometer, 0)
+            assert self.csc.mock_ctrl.odometer == 0
             await self.check_telemetry()
             data = await self.remote.evt_inPosition.next(
                 flush=False, timeout=STD_TIMEOUT
@@ -548,7 +548,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             data = await self.remote.evt_target.next(flush=False, timeout=STD_TIMEOUT)
             target_event_delay = utils.current_tai() - t0
             self.assertAlmostEqual(data.position, destination)
-            self.assertEqual(data.velocity, 0)
+            assert data.velocity == 0
             target_time_difference = utils.current_tai() - data.tai
             self.assertLessEqual(abs(target_time_difference), target_event_delay)
 
