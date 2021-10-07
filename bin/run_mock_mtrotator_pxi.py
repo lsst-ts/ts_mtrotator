@@ -20,23 +20,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import argparse
 import asyncio
 import logging
 
 from lsst.ts import mtrotator
 
+port = mtrotator.CONFIG_SCHEMA["properties"]["port"]["default"]
+
 
 async def main():
-    parser = argparse.ArgumentParser("Run mock rotator PXI code")
-    parser.add_argument("host", help="IP address of rotator CSC")
-    args = parser.parse_args()
-
     log = logging.getLogger("MockRotator")
     log.addHandler(logging.StreamHandler())
     log.setLevel(logging.DEBUG)
-    mtrotator.MockMTRotatorController(log=log, host=args.host)
-    print(f"Mock rotator controller constructed with host={args.host}; waiting forever")
+    mtrotator.MockMTRotatorController(log=log, port=port)
+    print("Mock rotator controller constructed; waiting forever")
     await asyncio.Future()
 
 
