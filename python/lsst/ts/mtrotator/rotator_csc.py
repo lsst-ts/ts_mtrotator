@@ -52,6 +52,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         The initial state of the CSC.
         Must be `lsst.ts.salobj.State.STANDBY` unless simulating
         (``simulation_mode != 0``).
+    settings_to_apply : `str`, optional
+        Settings to apply if ``initial_state`` is `State.DISABLED`
+        or `State.ENABLED`.
     simulation_mode : `int` (optional)
         Simulation mode. Allowed values:
 
@@ -75,7 +78,11 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     version = __version__
 
     def __init__(
-        self, config_dir=None, initial_state=salobj.State.STANDBY, simulation_mode=0
+        self,
+        config_dir=None,
+        initial_state=salobj.State.STANDBY,
+        settings_to_apply="",
+        simulation_mode=0,
     ):
         self.client = None
         self.mock_ctrl = None
@@ -104,9 +111,10 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             CommandCode=enums.CommandCode,
             ConfigClass=structs.Config,
             TelemetryClass=structs.Telemetry,
-            config_dir=config_dir,
             config_schema=CONFIG_SCHEMA,
+            config_dir=config_dir,
             initial_state=initial_state,
+            settings_to_apply=settings_to_apply,
             simulation_mode=simulation_mode,
         )
         self.mtmount_remote = salobj.Remote(domain=self.domain, name="MTMount")
