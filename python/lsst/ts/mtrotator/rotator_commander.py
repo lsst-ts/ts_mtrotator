@@ -45,7 +45,7 @@ class RotatorCommander(salobj.CscCommander):
         self.help_dict["cosine"] = "center_position, amplitude, max_speed "
         "# track one cycle of a cosine wave",
         for command_to_ignore in ("abort", "setValue"):
-            del self.command_dict[command_to_ignore]
+            self.command_dict.pop(command_to_ignore, None)
 
     async def close(self):
         self.tracking_task.cancel()
