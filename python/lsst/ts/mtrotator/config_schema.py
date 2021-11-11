@@ -46,7 +46,24 @@ properties:
     type: integer
     exclusiveMinimum: 0
     default: 3
-required: [max_ccw_following_error, num_ccw_following_errors]
+  host:
+    description: >-
+      IP address of the TCP/IP interface.
+    type: string
+    format: hostname
+    default: 10.9.57.229
+  port:
+    description: >-
+      Telemetry port number of the TCP/IP interface.
+      The command port is one larger.
+    type: integer
+    default: 5570
+  connection_timeout:
+    description: Time limit for connecting to the TCP/IP interface (sec)
+    type: number
+    exclusiveMinimum: 0
+    default: 10
+required: [max_ccw_following_error, num_ccw_following_errors, host, port, connection_timeout]
 additionalProperties: false
 """
 )

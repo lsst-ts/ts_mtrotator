@@ -36,12 +36,15 @@ class ValidationTestCase(unittest.TestCase):
         self.default = dict(
             max_ccw_following_error=2.2,
             num_ccw_following_errors=3,
+            host="10.9.57.229",
+            port=5570,
+            connection_timeout=10,
         )
 
     def test_default(self):
         result = self.validator.validate(None)
         for field, expected_value in self.default.items():
-            self.assertEqual(result[field], expected_value)
+            assert result[field] == expected_value
 
     def test_some_specified(self):
         data = dict(
@@ -54,20 +57,23 @@ class ValidationTestCase(unittest.TestCase):
                 result = self.validator.validate(one_field_data)
                 for field, default_value in self.default.items():
                     if field in one_field_data:
-                        self.assertEqual(result[field], one_field_data[field])
+                        assert result[field] == one_field_data[field]
                     else:
-                        self.assertEqual(result[field], default_value)
+                        assert result[field] == default_value
 
     def test_all_specified(self):
         data = dict(
             max_ccw_following_error=1.5,
             num_ccw_following_errors=1,
+            host="foo.bar",
+            port=25,
+            connection_timeout=0.5,
         )
         data_copy = data.copy()
         result = self.validator.validate(data)
-        self.assertEqual(data, data_copy)
+        assert data == data_copy
         for field, value in data.items():
-            self.assertEqual(result[field], value)
+            assert result[field] == value
 
     def test_invalid_configs(self):
         for name, badval in (
