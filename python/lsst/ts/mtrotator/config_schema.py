@@ -51,7 +51,7 @@ properties:
       IP address of the TCP/IP interface.
     type: string
     format: hostname
-    default: 10.9.57.229
+    default: rot-pxi-controller.cp.lsst.org
   port:
     description: >-
       Telemetry port number of the TCP/IP interface.

@@ -6,6 +6,22 @@
 Version History
 ###############
 
+v0.19.1
+-------
+
+Changes:
+
+* Update the default host to ``rot-pxi-controller.cp.lsst.org``.
+
+Requires:
+
+* ts_rotator_controller 1.3.0
+* ts_hexrotcomm 0.23
+* ts_salobj 6.3
+* ts_idl 3.4
+* ts_xml 7.1
+* MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount``
+
 v0.19.0
 -------
 
