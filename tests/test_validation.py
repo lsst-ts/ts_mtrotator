@@ -36,7 +36,7 @@ class ValidationTestCase(unittest.TestCase):
         self.default = dict(
             max_ccw_following_error=2.2,
             num_ccw_following_errors=3,
-            host="10.9.57.229",
+            host="rot-pxi-controller.cp.lsst.org",
             port=5570,
             connection_timeout=10,
         )
