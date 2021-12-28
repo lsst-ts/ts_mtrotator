@@ -305,6 +305,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         """
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             await self.assert_next_summary_state(salobj.State.ENABLED)
+            await self.assert_next_sample(topic=self.remote.evt_errorCode, errorCode=0)
 
             # Wait a bit; the CSC should still be enabled.
             # Wait for a few rotator telemetry messages,
@@ -319,8 +320,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await asyncio.wait_for(self.mock_ccw_task, timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
-                self.remote.evt_errorCode,
-                errorCode=ErrorCode.CONTROLLER_FAULT,
+                topic=self.remote.evt_errorCode, errorCode=ErrorCode.CONTROLLER_FAULT
             )
 
             # Test that ccwFollowingError is still output in FAULT state
@@ -338,6 +338,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
     async def test_excessive_ccw_following_error(self):
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             await self.assert_next_summary_state(salobj.State.ENABLED)
+            await self.assert_next_sample(topic=self.remote.evt_errorCode, errorCode=0)
 
             # Wait a bit; the CSC should still be enabled.
             # Wait for a few rotator telemetry messages,
@@ -353,8 +354,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.assert_next_ccw_following_error()
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
-                self.remote.evt_errorCode,
-                errorCode=ErrorCode.CONTROLLER_FAULT,
+                topic=self.remote.evt_errorCode, errorCode=ErrorCode.CONTROLLER_FAULT
             )
 
             # Zero the following error and re-enable the CSC.
@@ -365,6 +365,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             for state in states[1:]:
                 await self.assert_next_summary_state(state)
             await self.assert_next_ccw_following_error()
+            await self.assert_next_sample(topic=self.remote.evt_errorCode, errorCode=0)
 
             # Wait a bit; the CSC should still be enabled
             await asyncio.sleep(WAIT_FOR_CCW_DELAY)
@@ -377,13 +378,14 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.assert_next_ccw_following_error()
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
-                self.remote.evt_errorCode,
+                topic=self.remote.evt_errorCode,
                 errorCode=ErrorCode.CONTROLLER_FAULT,
             )
 
     async def test_transient_excessive_ccw_following_error(self):
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             await self.assert_next_summary_state(salobj.State.ENABLED)
+            await self.assert_next_sample(topic=self.remote.evt_errorCode, errorCode=0)
             self.assertGreater(self.csc.config.num_ccw_following_errors, 1)
 
             # Increase the following error for a single CCW telemetry message;
@@ -402,12 +404,13 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             )
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
-                self.remote.evt_errorCode,
+                topic=self.remote.evt_errorCode,
                 errorCode=ErrorCode.CONTROLLER_FAULT,
             )
 
     async def test_fault(self):
         async with self.make_csc(initial_state=salobj.State.ENABLED):
+            await self.assert_next_sample(topic=self.remote.evt_errorCode, errorCode=0)
             await self.assert_next_sample(
                 topic=self.remote.evt_softwareVersions,
                 cscVersion=mtrotator.__version__,
@@ -422,7 +425,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.remote.cmd_fault.start(timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.FAULT)
             await self.assert_next_sample(
-                self.remote.evt_errorCode,
+                topic=self.remote.evt_errorCode,
                 errorCode=ErrorCode.CONTROLLER_FAULT,
             )
             await self.assert_next_sample(

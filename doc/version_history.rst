@@ -6,6 +6,24 @@
 Version History
 ###############
 
+v0.20.0
+-------
+
+Changes:
+
+* Updated unit tests for compatibility with ts_salobj 6.8, which is now required.
+* ``setup.cfg``: update to not check version.py.
+* `CONFIG_SCHEMA`: update $id github link from master to main.
+
+Requires:
+
+* ts_rotator_controller 1.3.0
+* ts_hexrotcomm 0.23
+* ts_salobj 6.8
+* ts_idl 3.4
+* ts_xml 7.1
+* MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount``
+
 v0.19.1
 -------
 
