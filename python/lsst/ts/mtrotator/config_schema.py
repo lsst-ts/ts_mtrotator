@@ -26,7 +26,7 @@ import yaml
 CONFIG_SCHEMA = yaml.safe_load(
     """
 $schema: http://json-schema.org/draft-07/schema#
-$id: https://github.com/lsst-ts/ts_mtrotator/blob/master/python/lsst/ts/mtrotator/config_schema.py
+$id: https://github.com/lsst-ts/ts_mtrotator/blob/main/python/lsst/ts/mtrotator/config_schema.py
 title: MTRotator v1
 description: Configuration for the MTRotator CSC.
 type: object
