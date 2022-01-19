@@ -464,9 +464,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         safety_interlock = (
             client.telemetry.application_status & ApplicationStatus.SAFETY_INTERLOCK
         )
-        self.evt_interlock.set_put(
-            detail="Engaged" if safety_interlock else "Disengaged",
-        )
+        self.evt_interlock.set_put(engaged=safety_interlock)
 
         # Check following error if enabled and if not already checking
         # following error (don't let these tasks build up).
