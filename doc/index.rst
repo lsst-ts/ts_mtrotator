@@ -23,34 +23,36 @@ The MTRotator CSC controls the camera rotator on the Simonyi Survey Telescope.
 User Guide
 ==========
 
+Start the MTRotator CSC
+-----------------------
+
 Start the MTRotator CSC as follows:
 
 .. prompt:: bash
 
     run_mtrotator.py
 
-Then check that the CSC has control of the low-level controller, as follows:
+Enable the MTRotator CSC
+------------------------
 
-* Wait for the ``connected`` event to report ``command=True`` and ``telemetry=True``.
-  This should happen quickly; if it does not then check that the low-level controller is fully booted up and configured to use the correct IP address for the CSC.
-* Check the ``controllerState`` event.
-  If it is ``state=Offline, offline_substate=PublishOnly``, which is the state the low-level controller wakes up in,
-  then you must :ref:`use the EUI to enable DDS mode <lsst.ts.mtrotator.enable_with_eui>`.
-* Check the ``commandableByDDS`` event.
-  If ``state=False`` then you must :ref:`use the EUI to enable DDS mode <lsst.ts.mtrotator.enable_with_eui>`.
+The enable sequence is slightly unusual because the MTRotator and MTMount are closely linked.
+The MTRotator will go to fault if it is enabled and not receiving camera cable wrap telemetry from MTMount,
+or if it is connected, but the angle difference gets too large.
+But MTMount will stop following the rotator if it does not get rotation telemetry from MTRotator.
 
-Notes
------
+The recommended sequence is as follows:
 
-* To recover from the ``FAULT`` state (after fixing whatever is wrong) issue the ``standby``, ``start``, and ``enable`` commands.
+* Send the MTRotator to disabled state.
+  If this fails, fix the problem before continuing.
+* Send the MTMount to enabled state.
+  This will give it a chance to center the camera cable wrap on the rotator.
+* Enable the MTRotator.
 
-* Communication between the low-level controller and CSC is a bit unusual:
+To Recover from Fault State
+---------------------------
 
-  * The low-level controller does not acknowledge commands in any way.
-    Thus the CSC must try to predict whether the low-level controller can execute a command and reject the command if not.
-    Unfortunately this prediction cannot be completely accurate.
-  * The connection uses two separate sockets, one for commands and the other for telemetry and configuration.
-    Both are one-directional: the low-level controller reads commands on the command socket and writes configuration and telemetry to the telemetry socket.
+* To recover from the ``FAULT`` state (after fixing whatever is wrong): send the CSC to standby and then enable it.
+  In detail: issue the ``standby``, ``start``, and ``enable`` commands.
 
 Simulator
 ---------

@@ -6,6 +6,24 @@
 Version History
 ###############
 
+v0.22.0
+-------
+
+* Update for ts_hexrotcomm 0.28 and ts_rotator_controller 1.4.0:
+
+    * Remove support for the sync_pattern field in low-level commands.
+    * Remove ``FRAME_ID`` class constants from the `Config` and `Telemetry` structs, because frame IDs are now standardized.
+
+Requires:
+
+* ts_rotator_controller 1.4.0
+* ts_hexrotcomm 0.28
+* ts_salobj 6.8
+* ts_idl 3.4
+* ts_xml 10.2
+* MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount``
+
+
 v0.21.0
 -------
 

@@ -107,7 +107,6 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         super().__init__(
             name="MTRotator",
             index=0,
-            sync_pattern=constants.ROTATOR_SYNC_PATTERN,
             CommandCode=enums.CommandCode,
             ConfigClass=structs.Config,
             TelemetryClass=structs.Telemetry,
