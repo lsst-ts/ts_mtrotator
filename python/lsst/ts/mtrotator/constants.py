@@ -19,13 +19,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["MAX_VEL_LIMIT", "MAX_ACCEL_LIMIT", "ROTATOR_SYNC_PATTERN"]
+__all__ = ["MAX_VEL_LIMIT", "MAX_ACCEL_LIMIT"]
 
 # Maximum velocity limit (deg/sec)
 MAX_VEL_LIMIT = 3.5
 
 # Maximum acceleration limit (deg/sec^2)
 MAX_ACCEL_LIMIT = 1.0
-
-# Required value of command.sync_pattern for rotator commands.
-ROTATOR_SYNC_PATTERN = 0x5555
