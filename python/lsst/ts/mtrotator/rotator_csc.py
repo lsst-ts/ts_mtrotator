@@ -53,7 +53,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         Must be `lsst.ts.salobj.State.STANDBY` unless simulating
         (``simulation_mode != 0``).
     override : `str`, optional
-        Configuration override file to use if ``initial_state`` is
+        Configuration override file to apply if ``initial_state`` is
         `State.DISABLED` or `State.ENABLED`.
     simulation_mode : `int` (optional)
         Simulation mode. Allowed values:
