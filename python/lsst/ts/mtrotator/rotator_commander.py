@@ -77,7 +77,7 @@ class RotatorCommander(salobj.CscCommander):
             Field to omit from the comparison.
         """
         prev_value_name = f"previous_tel_{name}"
-        public_data = self.get_rounded_public_fields(data, digits=digits)
+        public_data = self.get_rounded_public_data(data, digits=digits)
         trimmed_data = public_data.copy()
         trimmed_data.pop(omit_field)
         if trimmed_data == getattr(self, prev_value_name):
