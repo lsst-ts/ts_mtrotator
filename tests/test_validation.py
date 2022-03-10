@@ -32,7 +32,7 @@ class ValidationTestCase(unittest.TestCase):
 
     def setUp(self):
         self.schema = mtrotator.CONFIG_SCHEMA
-        self.validator = salobj.DefaultingValidator(schema=self.schema)
+        self.validator = salobj.StandardValidator(schema=self.schema)
         self.default = dict(
             max_ccw_following_error=2.2,
             num_ccw_following_errors=3,
@@ -41,39 +41,15 @@ class ValidationTestCase(unittest.TestCase):
             connection_timeout=10,
         )
 
-    def test_default(self):
-        result = self.validator.validate(None)
-        for field, expected_value in self.default.items():
-            assert result[field] == expected_value
-
-    def test_some_specified(self):
-        data = dict(
-            max_ccw_following_error=1.5,
-            num_ccw_following_errors=1,
-        )
-        for field, value in data.items():
-            one_field_data = {field: value}
-            with self.subTest(one_field_data=one_field_data):
-                result = self.validator.validate(one_field_data)
-                for field, default_value in self.default.items():
-                    if field in one_field_data:
-                        assert result[field] == one_field_data[field]
-                    else:
-                        assert result[field] == default_value
-
-    def test_all_specified(self):
-        data = dict(
+    def test_basics(self):
+        config = dict(
             max_ccw_following_error=1.5,
             num_ccw_following_errors=1,
             host="foo.bar",
             port=25,
             connection_timeout=0.5,
         )
-        data_copy = data.copy()
-        result = self.validator.validate(data)
-        assert data == data_copy
-        for field, value in data.items():
-            assert result[field] == value
+        self.validator.validate(config)
 
     def test_invalid_configs(self):
         for name, badval in (
