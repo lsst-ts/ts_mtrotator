@@ -27,7 +27,7 @@ CONFIG_SCHEMA = yaml.safe_load(
     """
 $schema: http://json-schema.org/draft-07/schema#
 $id: https://github.com/lsst-ts/ts_mtrotator/blob/main/python/lsst/ts/mtrotator/config_schema.py
-title: MTRotator v1
+title: MTRotator v2
 description: Configuration for the MTRotator CSC.
 type: object
 properties:
@@ -37,7 +37,6 @@ properties:
       camera cable wrap actual position, beyond which the rotator is halted and sent to FAULT state.
     type: number
     exclusiveMinimum: 0
-    default: 2.2
   num_ccw_following_errors:
     description: >-
       The number of sequential camera cable wrap following errors required before halting the rotator.
@@ -45,24 +44,20 @@ properties:
       Note that the value is tested each time rotator telemetry arrives.
     type: integer
     exclusiveMinimum: 0
-    default: 3
   host:
     description: >-
       IP address of the TCP/IP interface.
     type: string
     format: hostname
-    default: rot-pxi-controller.cp.lsst.org
   port:
     description: >-
       Telemetry port number of the TCP/IP interface.
       The command port is one larger.
     type: integer
-    default: 5570
   connection_timeout:
     description: Time limit for connecting to the TCP/IP interface (sec)
     type: number
     exclusiveMinimum: 0
-    default: 10
 required: [max_ccw_following_error, num_ccw_following_errors, host, port, connection_timeout]
 additionalProperties: false
 """
