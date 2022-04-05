@@ -62,6 +62,8 @@ class Telemetry(ctypes.Structure):
         ("motor_torque_axis_b", ctypes.c_int16),
         ("copley_fault_status_register", ctypes.c_uint32 * 2),
         ("application_status", ctypes.c_uint32),
+        ("motor_current", ctypes.c_double * 2),  # new
+        ("bus_voltage", ctypes.c_double),  # new
         # simulink telemetry
         ("mjd", ctypes.c_double),
         ("mjd_frac", ctypes.c_double),
@@ -76,11 +78,8 @@ class Telemetry(ctypes.Structure):
         ("enabled_substate", ctypes.c_double),
         ("offline_substate", ctypes.c_double),
         ("test_state", ctypes.c_double),
-        ("cmd_ch_ab", ctypes.c_double),
         ("rate_cmd_ch_a", ctypes.c_double),
         ("rate_cmd_ch_b", ctypes.c_double),
-        ("ch_a_fb", ctypes.c_double),
-        ("ch_b_fb", ctypes.c_double),
         ("rotator_fb", ctypes.c_double),
         ("current_vel_ch_a_fb", ctypes.c_double),
         ("current_vel_ch_b_fb", ctypes.c_double),
