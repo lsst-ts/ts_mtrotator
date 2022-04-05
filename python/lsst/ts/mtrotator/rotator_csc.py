@@ -22,6 +22,7 @@
 __all__ = ["RotatorCsc"]
 
 import asyncio
+import math
 
 from lsst.ts import utils
 from lsst.ts import salobj
@@ -418,10 +419,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             ],
         )
         self.tel_motors.set_put(
-            calibrated=[
-                client.telemetry.ch_a_fb,
-                client.telemetry.ch_b_fb,
-            ],
+            calibrated=[math.nan, math.nan],
             raw=[
                 client.telemetry.motor_encoder_ch_a,
                 client.telemetry.motor_encoder_ch_b,
