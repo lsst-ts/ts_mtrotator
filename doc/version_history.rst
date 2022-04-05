@@ -6,6 +6,21 @@
 Version History
 ###############
 
+cycle24test1.5.0
+----------------
+
+* Update for ts_rotator_controller 1.5.0
+  This is a temporary version intended for use with cycle build 24.
+
+Requires:
+
+* ts_rotator_controller 1.5.0 prototype 2022-04-5
+* ts_hexrotcomm 0.28
+* ts_salobj 6.8
+* ts_idl 3.4
+* ts_xml 10.2
+* MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount``
+
 v0.22.0
 -------
 
