@@ -119,9 +119,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         self.mtmount_remote = salobj.Remote(domain=self.domain, name="MTMount")
 
     async def start(self):
+        await super().start()
         await self.mtmount_remote.start_task
         await self.evt_inPosition.set_write(inPosition=False, force_output=True)
-        await super().start()
 
     async def check_ccw_following_error(self):
         """Check the camera cable wrap following error.
