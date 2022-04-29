@@ -6,6 +6,24 @@
 Version History
 ###############
 
+v0.24.0
+-------
+
+Changes:
+
+* `RotatorCsc`: call ``super().start()`` at the beginning of the start method.
+  This requires ts_salobj 7.1.
+* ``setup.cfg``: set asyncio_mode = auto.
+* git ignore .hypothesis.
+
+Requires:
+
+* ts_rotator_controller 1.4.0
+* ts_hexrotcomm 0.29
+* ts_salobj 7.1
+* ts_idl 3.4
+* MTRotator and MTMount IDL files built from ts_xml 11
+
 v0.23.0
 -------
 
