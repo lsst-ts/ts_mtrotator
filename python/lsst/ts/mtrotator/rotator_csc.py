@@ -53,9 +53,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         The initial state of the CSC.
         Must be `lsst.ts.salobj.State.STANDBY` unless simulating
         (``simulation_mode != 0``).
-    settings_to_apply : `str`, optional
-        Settings to apply if ``initial_state`` is `State.DISABLED`
-        or `State.ENABLED`.
+    override : `str`, optional
+        Configuration override file to use if ``initial_state`` is
+        `State.DISABLED` or `State.ENABLED`.
     simulation_mode : `int` (optional)
         Simulation mode. Allowed values:
 
@@ -82,7 +82,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         self,
         config_dir=None,
         initial_state=salobj.State.STANDBY,
-        settings_to_apply="",
+        override="",
         simulation_mode=0,
     ):
         self.client = None
@@ -114,14 +114,14 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             config_schema=CONFIG_SCHEMA,
             config_dir=config_dir,
             initial_state=initial_state,
-            settings_to_apply=settings_to_apply,
+            override="",
             simulation_mode=simulation_mode,
         )
         self.mtmount_remote = salobj.Remote(domain=self.domain, name="MTMount")
 
     async def start(self):
         await self.mtmount_remote.start_task
-        self.evt_inPosition.set_put(inPosition=False, force_output=True)
+        await self.evt_inPosition.set_write(inPosition=False, force_output=True)
         await super().start()
 
     async def check_ccw_following_error(self):
@@ -169,7 +169,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             # Compute and report the following error.
             corr_ccw_pos = ccw_data.actualPosition + ccw_data.actualVelocity * dt
             following_error = rot_data.actualPosition - corr_ccw_pos
-            self.tel_ccwFollowingError.set_put(
+            await self.tel_ccwFollowingError.set_write(
                 positionError=following_error,
                 velocityError=rot_data.actualVelocity - ccw_data.actualVelocity,
                 timestamp=rot_tai,
@@ -199,7 +199,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     async def configure(self, config):
         self.config = config
 
-    def config_callback(self, client):
+    async def config_callback(self, client):
         """Called when the TCP/IP controller outputs configuration.
 
         Parameters
@@ -207,7 +207,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         client : `lsst.ts.hexrotcomm.CommandTelemetryClient`
             TCP/IP client.
         """
-        self.evt_configuration.set_put(
+        await self.evt_configuration.set_write(
             positionAngleUpperLimit=client.config.upper_pos_limit,
             velocityLimit=client.config.velocity_limit,
             accelerationLimit=client.config.accel_limit,
@@ -217,8 +217,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             trackingLostTimeout=client.config.tracking_lost_timeout,
         )
 
-    def connect_callback(self, client):
-        super().connect_callback(client)
+    async def connect_callback(self, client):
+        await super().connect_callback(client)
         # Always reset this counter; if newly connected then we'll start
         # accumulating the count and otherwise it makes no difference.
         self._num_ccw_following_errors = 0
@@ -288,7 +288,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             param1=enums.SetEnabledSubstateParam.MOVE_POINT_TO_POINT,
         )
         await self.run_multiple_commands(cmd1, cmd2)
-        self.evt_target.set_put(
+        await self.evt_target.set_write(
             position=data.position,
             velocity=0,
             tai=utils.current_tai(),
@@ -341,7 +341,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             param2=data.angle,
             param3=data.velocity,
         )
-        self.evt_target.set_put(
+        await self.evt_target.set_write(
             position=data.angle, velocity=data.velocity, tai=data.tai, force_output=True
         )
 
@@ -371,7 +371,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         finally:
             self._faulting = False
 
-    def telemetry_callback(self, client):
+    async def telemetry_callback(self, client):
         """Called when the TCP/IP controller outputs telemetry.
 
         Parameters
@@ -382,18 +382,18 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         tai_unix = client.header.tai_sec + client.header.tai_nsec / 1e9
         if self._tracking_started_telemetry_counter > 0:
             self._tracking_started_telemetry_counter -= 1
-        self.evt_summaryState.set_put(summaryState=self.summary_state)
+        await self.evt_summaryState.set_write(summaryState=self.summary_state)
         # Strangely telemetry.state, offline_substate and enabled_substate
         # are all floats from the controller. But they should only have
         # integer value, so I output them as integers.
-        self.evt_controllerState.set_put(
+        await self.evt_controllerState.set_write(
             controllerState=int(client.telemetry.state),
             offlineSubstate=int(client.telemetry.offline_substate),
             enabledSubstate=int(client.telemetry.enabled_substate),
             applicationStatus=client.telemetry.application_status,
         )
 
-        self.tel_rotation.set_put(
+        await self.tel_rotation.set_write(
             demandPosition=client.telemetry.demand_pos,
             demandVelocity=client.telemetry.demand_vel,
             demandAcceleration=client.telemetry.demand_accel,
@@ -408,7 +408,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             odometer=client.telemetry.rotator_odometer,
             timestamp=tai_unix,
         )
-        self.tel_electrical.set_put(
+        await self.tel_electrical.set_write(
             copleyStatusWordDrive=[
                 client.telemetry.status_word_drive0,
                 client.telemetry.status_word_drive0_axis_b,
@@ -418,7 +418,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 client.telemetry.latching_fault_status_register_axis_b,
             ],
         )
-        self.tel_motors.set_put(
+        await self.tel_motors.set_write(
             calibrated=[math.nan, math.nan],
             raw=[
                 client.telemetry.motor_encoder_ch_a,
@@ -438,21 +438,21 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             ],
         )
 
-        self.evt_inPosition.set_put(
+        await self.evt_inPosition.set_write(
             inPosition=bool(
                 client.telemetry.flags_move_success
                 or client.telemetry.flags_tracking_success
             )
         )
 
-        self.evt_commandableByDDS.set_put(
+        await self.evt_commandableByDDS.set_write(
             state=bool(
                 client.telemetry.application_status
                 & ApplicationStatus.DDS_COMMAND_SOURCE
             ),
         )
 
-        self.evt_tracking.set_put(
+        await self.evt_tracking.set_write(
             tracking=bool(client.telemetry.flags_tracking_success),
             lost=bool(client.telemetry.flags_tracking_lost),
             noNewCommand=bool(client.telemetry.flags_no_new_track_cmd_error),
@@ -461,7 +461,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         safety_interlock = (
             client.telemetry.application_status & ApplicationStatus.SAFETY_INTERLOCK
         )
-        self.evt_interlock.set_put(engaged=safety_interlock)
+        await self.evt_interlock.set_write(engaged=safety_interlock)
 
         # Check following error if enabled and if not already checking
         # following error (don't let these tasks build up).
