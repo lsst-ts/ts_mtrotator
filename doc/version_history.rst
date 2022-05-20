@@ -6,6 +6,20 @@
 Version History
 ###############
 
+v0.22.3
+-------
+
+* Update CSC to be compatible with salobj7.
+
+Requires:
+
+* ts_rotator_controller 1.5.0 prototype 2022-04-5
+* ts_hexrotcomm 0.30
+* ts_salobj 7
+* ts_idl 3.8
+* ts_xml 11.1
+* MTRotator and MTMount IDL files, e.g. made using ``make_idl_files.py MTRotator MTMount``
+
 v0.22.2
 -------
 
