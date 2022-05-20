@@ -120,7 +120,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
     async def start(self):
         await self.mtmount_remote.start_task
-        self.evt_inPosition.set_put(inPosition=False, force_output=True)
+        await self.evt_inPosition.set_write(inPosition=False, force_output=True)
         await super().start()
 
     async def check_ccw_following_error(self):
