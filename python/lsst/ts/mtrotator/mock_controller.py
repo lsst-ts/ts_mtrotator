@@ -320,8 +320,10 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
             self.telemetry.current_pos = curr_pos
             self.telemetry.current_vel_ch_a_fb = curr_segment.velocity
             self.telemetry.current_vel_ch_b_fb = curr_segment.velocity
-            self.telemetry.motor_current_axis_a = motor_current
-            self.telemetry.motor_current_axis_b = motor_current
+            self.telemetry.motor_current[:] = [motor_current] * 2
+            self.telemetry.bus_voltage = 20  # arbitrary
+            self.telemetry.demand_motor_current_axis_a = motor_current
+            self.telemetry.demand_motor_current_axis_b = motor_current
             self.telemetry.motor_torque_axis_a = motor_torque_scaled
             self.telemetry.motor_torque_axis_b = motor_torque_scaled
             self.telemetry.rotator_odometer = self.odometer
