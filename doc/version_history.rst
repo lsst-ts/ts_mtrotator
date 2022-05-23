@@ -6,6 +6,23 @@
 Version History
 ###############
 
+v0.24.1
+-------
+
+Changes:
+
+* Stop publishing motors.calibrated telemetry.
+  The new low-level controller won't provide the necessary information and we want to remove it from the XML.
+* Restore output of motor current.
+
+Requires:
+
+* ts_rotator_controller 1.4.0
+* ts_hexrotcomm 0.29
+* ts_salobj 7.1
+* ts_idl 3.4
+* MTRotator and MTMount IDL files built from ts_xml 11.1
+
 v0.24.0
 -------
 
