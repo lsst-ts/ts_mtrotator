@@ -418,10 +418,6 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             ],
         )
         await self.tel_motors.set_write(
-            calibrated=[
-                client.telemetry.ch_a_fb,
-                client.telemetry.ch_b_fb,
-            ],
             raw=[
                 client.telemetry.motor_encoder_ch_a,
                 client.telemetry.motor_encoder_ch_b,
