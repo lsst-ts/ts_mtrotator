@@ -21,9 +21,9 @@ build:
 test:
   requires:
     - ts-conda-build =0.3
-    - ts-idl =3.8.2_11.1.1_6.1.0
-    - ts-salobj =7
-    - ts-hexrotcomm =0.30
+    - ts-idl {{ idl_version }}
+    - ts-salobj {{ salobj_version }}
+    - ts-hexrotcomm
     - ts-simactuators
   source_files:
     - python
@@ -45,6 +45,6 @@ requirements:
     - setuptools
     - setuptools_scm
     - ts-idl
-    - ts-salobj =7
+    - ts-salobj
     - ts-hexrotcomm
     - ts-simactuators
