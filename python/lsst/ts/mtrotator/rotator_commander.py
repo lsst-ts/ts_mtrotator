@@ -17,7 +17,7 @@
 #
 # You should have received a copy of the GNU General Public License
 
-__all__ = ["RotatorCommander"]
+__all__ = ["RotatorCommander", "command_mtrotator"]
 
 import asyncio
 
@@ -33,6 +33,16 @@ TRACK_INTERVAL = 0.1  # interval between tracking updates (seconds)
 
 
 class RotatorCommander(salobj.CscCommander):
+    """Command the MTRotator CSC from the command-line.
+
+    This is only intended for engineering.
+
+    Parameters
+    ----------
+    enable : bool
+        Enable the CSC when first connecting?
+    """
+
     def __init__(self, enable):
         self.tracking_task = asyncio.Future()
         super().__init__(
@@ -200,3 +210,8 @@ class RotatorCommander(salobj.CscCommander):
             print(f"sine failed: {e}")
         finally:
             await self.remote.cmd_stop.start(timeout=STD_TIMEOUT)
+
+
+def command_mtrotator():
+    """Run the MTRotator commander."""
+    asyncio.run(RotatorCommander.amain(index=None))

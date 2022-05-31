@@ -281,7 +281,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         await self.check_bin_script(
             name="MTRotator",
             index=None,
-            exe_name="run_mtrotator.py",
+            exe_name="run_mtrotator",
             cmdline_args=["--simulate"],
         )
 

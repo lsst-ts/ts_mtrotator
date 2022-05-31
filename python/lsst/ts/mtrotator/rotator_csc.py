@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["RotatorCsc"]
+__all__ = ["RotatorCsc", "run_mtrotator"]
 
 import asyncio
 
@@ -470,3 +470,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             port=0,
             initial_state=initial_ctrl_state,
         )
+
+
+def run_mtrotator():
+    """Run the MTRotator CSC."""
+    asyncio.run(RotatorCsc.amain(index=None))
