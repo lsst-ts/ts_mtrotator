@@ -22,6 +22,7 @@
 import asyncio
 import contextlib
 import unittest
+import pathlib
 
 from lsst.ts import utils
 from lsst.ts import hexrotcomm
@@ -40,9 +41,13 @@ STD_FOLLOWING_DELTA_VELOCITY = 0.1
 # to respond to them (seconds).
 WAIT_FOR_CCW_DELAY = 0.5
 
+TEST_CONFIG_DIR = pathlib.Path(__file__).parent / "data" / "config"
+
 
 class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        super().setUp()
+
         # The most recently seen rotation.odometer telemetry reading
         self.prev_odometer = None
 
@@ -149,7 +154,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
     async def make_csc(
         self,
         initial_state=salobj.State.STANDBY,
-        config_dir=None,
+        config_dir=TEST_CONFIG_DIR,
         simulation_mode=1,
         log_level=None,
         timeout=STD_TIMEOUT,
@@ -186,7 +191,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             If True then start a mock camera cable wrap controller.
         **kwargs : `dict`, optional
             Extra keyword arguments for `basic_make_csc`.
-            For a configurable CSC this may include ``settings_to_apply``,
+            For a configurable CSC this may include ``override``,
             especially if ``initial_state`` is DISABLED or ENABLED.
 
         """
@@ -263,7 +268,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                     f"position={ccw_position:0.2f}; "
                     f"velocity={rotation_data.actualVelocity:0.2f}"
                 )
-                self.mtmount_controller.tel_cameraCableWrap.set_put(
+                await self.mtmount_controller.tel_cameraCableWrap.set_write(
                     actualPosition=ccw_position,
                     actualVelocity=rotation_data.actualVelocity,
                     actualAcceleration=0,
