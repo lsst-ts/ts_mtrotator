@@ -119,9 +119,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         self.mtmount_remote = salobj.Remote(domain=self.domain, name="MTMount")
 
     async def start(self):
-        await super().start()
         await self.mtmount_remote.start_task
         await self.evt_inPosition.set_write(inPosition=False, force_output=True)
+        await super().start()
 
     async def check_ccw_following_error(self):
         """Check the camera cable wrap following error.
@@ -422,18 +422,14 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 client.telemetry.motor_encoder_ch_a,
                 client.telemetry.motor_encoder_ch_b,
             ],
-            # DM-31447 Uncomment when the low-level controller provides
-            # this data (right now the fields are always zero).
-            # current=[
-            #     client.telemetry.motor_current_axis_a,
-            #     client.telemetry.motor_current_axis_b,
-            # ],
             # The torque from the low-level controller is N-m/1e6
             # (and is an integer); convert it to N-m
             torque=[
                 client.telemetry.motor_torque_axis_a / 1e6,
                 client.telemetry.motor_torque_axis_b / 1e6,
             ],
+            current=client.telemetry.motor_current,
+            busVoltage=client.telemetry.bus_voltage,
         )
 
         await self.evt_inPosition.set_write(
