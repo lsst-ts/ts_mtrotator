@@ -30,7 +30,7 @@ Start the MTRotator CSC as follows:
 
 .. prompt:: bash
 
-    run_mtrotator.py
+    run_mtrotator
 
 Enable the MTRotator CSC
 ------------------------
@@ -61,7 +61,7 @@ The CSC includes a simulation mode. To run using CSC's internal simulator:
 
 .. prompt:: bash
 
-    run_mtrotator.py --simulate
+    run_mtrotator --simulate
 
 .. _lsst.ts.mtrotator.enable_with_eui:
 
