@@ -267,7 +267,6 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 await self.mtmount_controller.tel_cameraCableWrap.set_write(
                     actualPosition=ccw_position,
                     actualVelocity=rotation_data.actualVelocity,
-                    actualAcceleration=0,
                     timestamp=ccw_tai,
                 )
                 self.ccw_transient_following_error = 0
