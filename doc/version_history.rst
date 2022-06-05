@@ -6,6 +6,25 @@
 Version History
 ###############
 
+v0.25.0
+-------
+
+Changes:
+
+* Rename command-line scripts to remove ".py" suffix.
+* Remove the ``run_mock_rotator_pxi.py`` command-line script.
+* Update a test to be compatible with ts_xml 12.
+* Updated for ts_rotator_controller 1.5.0, which is required.
+* Build with pyproject.toml.
+
+Requires:
+
+* ts_rotator_controller 1.5.0
+* ts_hexrotcomm 0.29
+* ts_salobj 7.1
+* ts_idl 3.4
+* MTRotator and MTMount IDL files built from ts_xml 11.1
+
 v0.24.1
 -------
 
