@@ -1,2 +1,2 @@
 @Library('JenkinsShared')_
-CondaPipeline(["ts_config_mttcs"], "ts-mtrotator", "lsst.ts.mtrotator")
+CondaPipeline(["ts_config_mttcs"], "ts-mtrotator", "lsst.ts.mtrotator", "noarch")
