@@ -20,9 +20,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""An example of how to run a CSC"""
-import asyncio
+"""Monitor and command the MTRotator.
 
-from lsst.ts.mtrotator import RotatorCsc
+To use::
 
-asyncio.run(RotatorCsc.amain(index=None))
+    command_mtrotator.py
+
+Then wait for it to connect. Once it has connected it will print
+initial rotator status and help.
+
+Commands are entered by typing the command and arguments (if any),
+separated by spaces, then <return>. "help" is a command.
+"""
+from lsst.ts.mtrotator import command_mtrotator
+
+
+command_mtrotator()

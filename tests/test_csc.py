@@ -129,25 +129,21 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         acceleration = self.csc.mock_ctrl.rotator.path.at(
             motors_data.private_sndStamp
         ).acceleration
-        # DM-31447 uncomment when the low-level controller provides this data
-        # desired_current = acceleration * self.csc.mock_ctrl.current_per_acceleration  # noqa
+        desired_current = acceleration * self.csc.mock_ctrl.current_per_acceleration
         desired_torque = acceleration * self.csc.mock_ctrl.torque_per_acceleration
-        # DM-31447 uncomment when the low-level controller provides this data
-        # print(
-        #     f"current={motors_data.current[0]:0.8f}; "
-        #     f"delta={abs(motors_data.current[0] - desired_current):0.8f}"
-        # )
+        print(
+            f"current={motors_data.current[0]:0.8f}; "
+            f"delta={abs(motors_data.current[0] - desired_current):0.8f}"
+        )
         print(
             f"torque={motors_data.torque[0]:0.8f}; "
             f"delta={abs(motors_data.torque[0] - desired_torque):0.8f}"
         )
-        # DM-31447 uncomment when the low-level controller provides this data
-        # self.assertAlmostEqual(motors_data.current[0], desired_current, delta=slop)  # noqa
+        self.assertAlmostEqual(motors_data.current[0], desired_current, delta=slop)
         self.assertAlmostEqual(motors_data.torque[0], desired_torque, delta=0.01)
         # The mock controller publishes exactly the same current and torque
         # for both motors (though that is not realistic).
-        # DM-31447 uncomment when the low-level controller provides this data
-        # assert motors_data.current[0] ==  motors_data.current[1]
+        assert motors_data.current[0] == motors_data.current[1]
         assert motors_data.torque[0] == motors_data.torque[1]
 
     @contextlib.asynccontextmanager
@@ -271,7 +267,6 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 await self.mtmount_controller.tel_cameraCableWrap.set_write(
                     actualPosition=ccw_position,
                     actualVelocity=rotation_data.actualVelocity,
-                    actualAcceleration=0,
                     timestamp=ccw_tai,
                 )
                 self.ccw_transient_following_error = 0
@@ -286,7 +281,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         await self.check_bin_script(
             name="MTRotator",
             index=None,
-            exe_name="run_mtrotator.py",
+            exe_name="run_mtrotator",
             cmdline_args=["--simulate"],
         )
 
