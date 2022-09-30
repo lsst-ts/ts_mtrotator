@@ -72,16 +72,25 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             config_dir=config_dir,
         )
 
-    async def check_telemetry(self):
-        """Check the the next rotation and motors telemetry messages."""
+    async def check_telemetry(self, nskip=0):
+        """Check the the next rotation and motors telemetry messages.
+
+        Parameters
+        ----------
+        nskip : `int`, optional
+            Number of telemetry samples to skip, for each topic.
+            Typically 0 (the default), but use 1 at a transition,
+            e.g. starting or ending a move.
+        """
         # We need some margin, slightly more than I naively expected,
         # possibly because there is some roundoff error in converting time
         # between TAI unix seconds and astropy times.
         slop = 1e-6
 
-        rotation_data = await self.remote.tel_rotation.next(
-            flush=True, timeout=STD_TIMEOUT
-        )
+        for _ in range(nskip + 1):
+            rotation_data = await self.remote.tel_rotation.next(
+                flush=True, timeout=STD_TIMEOUT
+            )
         path_segment = self.csc.mock_ctrl.rotator.path.at(rotation_data.timestamp)
         # Print the values to get some idea of how much slop is needed
         # and so it is easier to determine which test failed
@@ -125,7 +134,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             self.assertGreaterEqual(rotation_data.odometer, self.prev_odometer)
         self.prev_odometer = rotation_data.odometer
 
-        motors_data = await self.remote.tel_motors.next(flush=True, timeout=STD_TIMEOUT)
+        for _ in range(nskip + 1):
+            motors_data = await self.remote.tel_motors.next(
+                flush=True, timeout=STD_TIMEOUT
+            )
         acceleration = self.csc.mock_ctrl.rotator.path.at(
             motors_data.private_sndStamp
         ).acceleration
@@ -555,8 +567,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             target_time_difference = utils.current_tai() - data.tai
             self.assertLessEqual(abs(target_time_difference), target_event_delay)
 
+            # Check telemetry; the first time skip 1 the first time, to make
+            # sure telemetry and the mock actuator agree that we are moving.
             for i in range(10):
-                await self.check_telemetry()
+                await self.check_telemetry(nskip=1 if i == 0 else 0)
             await self.assert_next_sample(
                 topic=self.remote.evt_controllerState,
                 controllerState=ControllerState.ENABLED,
@@ -572,7 +586,9 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.STATIONARY,
             )
-            await self.check_telemetry()
+            # Check telemetry; skip 1 to make sure telemetry and the
+            # mock actuator agree that we have halted.
+            await self.check_telemetry(nskip=1)
             # The odometer is accumulated in a somewhat simplistic fashion,
             # so give some slop (though this is more than we really need)
             self.assertAlmostEqual(self.csc.mock_ctrl.odometer, destination, delta=0.01)
@@ -661,8 +677,9 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 self.assertAlmostEqual(data.tai, tai)
                 self.assertAlmostEqual(data.velocity, vel)
                 self.assertAlmostEqual(data.position, pos)
-                await self.check_telemetry()
-                await asyncio.sleep(0.1)
+                # Check telemetry; skip 1 to make sure telemetry and the
+                # mock actuators have both seen the new tracking command.
+                await self.check_telemetry(nskip=1)
                 data = self.remote.evt_inPosition.get()
                 if data.inPosition:
                     # Slew is done; success
