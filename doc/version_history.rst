@@ -6,6 +6,24 @@
 Version History
 ###############
 
+v0.25.1
+-------
+
+Changes:
+
+* `MTRotatorCsc`: call super().start() first in the start method, for compatibility with the Kafka version of ts_salobj.
+* Make test_move and test_tracking_good in tests/test_csc.py more robust by eliminating a race condition.
+* Fix Jenkins CI file by changing HOME to WHOME everywhere except the cleanup section.
+* Add setupRequired(ts_config_mttcs) to the ups table file.
+
+Requires:
+
+* ts_rotator_controller 1.5.0
+* ts_hexrotcomm 0.29
+* ts_salobj 7.1
+* ts_idl 3.4
+* MTRotator and MTMount IDL files built from ts_xml 11.1
+
 v0.25.0
 -------
 
