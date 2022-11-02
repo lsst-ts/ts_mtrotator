@@ -73,7 +73,7 @@ class RotatorCommander(salobj.CscCommander):
         kwargs = self.check_arguments(args, "center_position", "amplitude", "max_speed")
         self.tracking_task = asyncio.ensure_future(self._cosine(**kwargs))
 
-    def _special_telemetry_callback(self, data, name, omit_field, digits=2):
+    def _special_telemetry_callback(self, data, name, omit_fields, digits=2):
         """Callback for telemetry omitting one specified field
         from the comparison, but printing it.
 
@@ -83,13 +83,16 @@ class RotatorCommander(salobj.CscCommander):
             Telemetry data.
         name : `str`
             Name of telemetry topic, without the `tel_` prefix.
-        omit_field : `list` [`str`]
-            Field to omit from the comparison.
+        omit_fields : `list` [`str`]
+            All fields to omit from the comparison.
+            Note that the CscCommander constructor arguments
+            that specify fields to ignore are ignored.
         """
         prev_value_name = f"previous_tel_{name}"
         public_data = self.get_rounded_public_data(data, digits=digits)
         trimmed_data = public_data.copy()
-        trimmed_data.pop(omit_field)
+        for omit_field in omit_fields:
+            trimmed_data.pop(omit_field)
         if trimmed_data == getattr(self, prev_value_name):
             return
         setattr(self, prev_value_name, trimmed_data)
@@ -97,27 +100,22 @@ class RotatorCommander(salobj.CscCommander):
         self.output(f"{data.private_sndStamp:0.3f}: {name}: {formatted_data}")
 
     async def tel_motors_callback(self, data):
-        """Don't print if only the raw field has changed.
+        """Don't print if only the raw or busVoltage fields have changed.
 
         Parameters
         ----------
         data : `object`
             MTRotator motors telemetry data.
         """
+        # Only pay attention to changes in the "raw" and "torque" fields,
+        # and round to -5 digits to ignore large jitter in "raw".
         self._special_telemetry_callback(
-            data=data, name="motors", omit_field="raw", digits=1
+            data=data, name="motors", omit_fields=["busVoltage", "current"], digits=-5
         )
 
     async def tel_rotation_callback(self, data):
-        """Don't print if only the timestamp has changed.
-
-        Parameters
-        ----------
-        data : `object`
-            MTRotator rotation telemetry data.
-        """
         self._special_telemetry_callback(
-            data=data, name="rotation", omit_field="timestamp"
+            data=data, name="rotation", omit_fields=["odometer", "timestamp"], digits=2
         )
 
     async def _ramp(self, start_position, end_position, speed):
