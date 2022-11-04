@@ -27,7 +27,7 @@ from lsst.ts import simactuators
 STD_TIMEOUT = 5  # timeout for command ack
 
 # How far in advance to set the time field of tracking commands (seconds)
-TRACK_ADVANCE_TIME = 0.05
+TRACK_ADVANCE_TIME = 0.1
 
 TRACK_INTERVAL = 0.1  # interval between tracking updates (seconds)
 
@@ -50,10 +50,12 @@ class RotatorCommander(salobj.CscCommander):
             index=0,
             enable=enable,
         )
-        self.help_dict["ramp"] = "start_position end_position speed "
-        "# track a path of constant",
-        self.help_dict["cosine"] = "center_position, amplitude, max_speed "
-        "# track one cycle of a cosine wave",
+        self.help_dict[
+            "ramp"
+        ] = "start_position end_position speed  # track a path of constant"
+        self.help_dict[
+            "cosine"
+        ] = "center_position, amplitude, max_speed  # track one cycle of a cosine wave"
         for command_to_ignore in ("abort", "setValue"):
             self.command_dict.pop(command_to_ignore, None)
 
@@ -138,7 +140,7 @@ class RotatorCommander(salobj.CscCommander):
                 advance_time=TRACK_ADVANCE_TIME,
             )
             print(
-                f"Tracking a ramp from {start_position} to {end_position} at speed {speed}; "
+                f"Track a ramp from {start_position} to {end_position} at speed {speed}; "
                 f"this will take {ramp_generator.duration:0.2f} seconds"
             )
             await self.remote.cmd_trackStart.start(timeout=STD_TIMEOUT)
@@ -151,11 +153,13 @@ class RotatorCommander(salobj.CscCommander):
                 )
                 await asyncio.sleep(TRACK_INTERVAL)
         except asyncio.CancelledError:
-            print("ramp cancelled")
+            print("Ramp cancelled")
         except Exception as e:
-            print(f"ramp failed: {e}")
+            print(f"Ramp failed: {e!r}")
         finally:
+            print("Stop tracking")
             await self.remote.cmd_stop.start(timeout=STD_TIMEOUT)
+            print("Ramp finished")
 
     async def _cosine(self, center_position, amplitude, max_speed):
         """Track one sine wave of specified amplitude and period.
