@@ -9,7 +9,10 @@ Version History
 v0.25.2
 -------
 
-* `MTRotatorCommander`: avoid a flood of ``motors`` messages.
+* `RotatorCommander`:
+
+    * Avoid a flood of ``motors`` messages.
+    * Improve the accuracy of the rate at which tracking commands are issued by the ``cosine`` and ``ramp`` commands.
 
 Requires:
 
