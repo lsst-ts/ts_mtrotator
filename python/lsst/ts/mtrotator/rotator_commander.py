@@ -23,13 +23,15 @@ import asyncio
 
 from lsst.ts import salobj
 from lsst.ts import simactuators
+from lsst.ts import utils
 
 STD_TIMEOUT = 5  # timeout for command ack
 
 # How far in advance to set the time field of tracking commands (seconds)
-TRACK_ADVANCE_TIME = 0.05
+TRACK_ADVANCE_TIME = 0.15
 
-TRACK_INTERVAL = 0.1  # interval between tracking updates (seconds)
+# Interval between tracking commands (seconds). 0.05 matches MTPtg.
+TRACK_INTERVAL = 0.05
 
 
 class RotatorCommander(salobj.CscCommander):
@@ -50,10 +52,12 @@ class RotatorCommander(salobj.CscCommander):
             index=0,
             enable=enable,
         )
-        self.help_dict["ramp"] = "start_position end_position speed "
-        "# track a path of constant",
-        self.help_dict["cosine"] = "center_position, amplitude, max_speed "
-        "# track one cycle of a cosine wave",
+        self.help_dict[
+            "ramp"
+        ] = "start_position end_position speed  # track a path of constant"
+        self.help_dict[
+            "cosine"
+        ] = "center_position, amplitude, max_speed  # track one cycle of a cosine wave"
         for command_to_ignore in ("abort", "setValue"):
             self.command_dict.pop(command_to_ignore, None)
 
@@ -73,7 +77,7 @@ class RotatorCommander(salobj.CscCommander):
         kwargs = self.check_arguments(args, "center_position", "amplitude", "max_speed")
         self.tracking_task = asyncio.ensure_future(self._cosine(**kwargs))
 
-    def _special_telemetry_callback(self, data, name, omit_field, digits=2):
+    def _special_telemetry_callback(self, data, name, omit_fields, digits=2):
         """Callback for telemetry omitting one specified field
         from the comparison, but printing it.
 
@@ -83,13 +87,16 @@ class RotatorCommander(salobj.CscCommander):
             Telemetry data.
         name : `str`
             Name of telemetry topic, without the `tel_` prefix.
-        omit_field : `list` [`str`]
-            Field to omit from the comparison.
+        omit_fields : `list` [`str`]
+            All fields to omit from the comparison.
+            Note that the CscCommander constructor arguments
+            that specify fields to ignore are ignored.
         """
         prev_value_name = f"previous_tel_{name}"
         public_data = self.get_rounded_public_data(data, digits=digits)
         trimmed_data = public_data.copy()
-        trimmed_data.pop(omit_field)
+        for omit_field in omit_fields:
+            trimmed_data.pop(omit_field)
         if trimmed_data == getattr(self, prev_value_name):
             return
         setattr(self, prev_value_name, trimmed_data)
@@ -97,27 +104,22 @@ class RotatorCommander(salobj.CscCommander):
         self.output(f"{data.private_sndStamp:0.3f}: {name}: {formatted_data}")
 
     async def tel_motors_callback(self, data):
-        """Don't print if only the raw field has changed.
+        """Don't print if only the raw or busVoltage fields have changed.
 
         Parameters
         ----------
         data : `object`
             MTRotator motors telemetry data.
         """
+        # Only pay attention to changes in the "raw" and "torque" fields,
+        # and round to -5 digits to ignore large jitter in "raw".
         self._special_telemetry_callback(
-            data=data, name="motors", omit_field="raw", digits=1
+            data=data, name="motors", omit_fields=["busVoltage", "current"], digits=-5
         )
 
     async def tel_rotation_callback(self, data):
-        """Don't print if only the timestamp has changed.
-
-        Parameters
-        ----------
-        data : `object`
-            MTRotator rotation telemetry data.
-        """
         self._special_telemetry_callback(
-            data=data, name="rotation", omit_field="timestamp"
+            data=data, name="rotation", omit_fields=["odometer", "timestamp"], digits=2
         )
 
     async def _ramp(self, start_position, end_position, speed):
@@ -140,24 +142,29 @@ class RotatorCommander(salobj.CscCommander):
                 advance_time=TRACK_ADVANCE_TIME,
             )
             print(
-                f"Tracking a ramp from {start_position} to {end_position} at speed {speed}; "
+                f"Track a ramp from {start_position} to {end_position} at speed {speed}; "
                 f"this will take {ramp_generator.duration:0.2f} seconds"
             )
             await self.remote.cmd_trackStart.start(timeout=STD_TIMEOUT)
             for positions, velocities, tai in ramp_generator():
+                t0 = utils.current_tai()
                 await self.remote.cmd_track.set_start(
                     angle=positions[0],
                     velocity=velocities[0],
                     tai=tai,
                     timeout=STD_TIMEOUT,
                 )
-                await asyncio.sleep(TRACK_INTERVAL)
+                dt = utils.current_tai() - t0
+                sleep_duration = max(0, TRACK_INTERVAL - dt)
+                await asyncio.sleep(sleep_duration)
         except asyncio.CancelledError:
-            print("ramp cancelled")
+            print("Ramp cancelled")
         except Exception as e:
-            print(f"ramp failed: {e}")
+            print(f"Ramp failed: {e!r}")
         finally:
+            print("Stop tracking")
             await self.remote.cmd_stop.start(timeout=STD_TIMEOUT)
+            print("Ramp finished")
 
     async def _cosine(self, center_position, amplitude, max_speed):
         """Track one sine wave of specified amplitude and period.
@@ -197,13 +204,16 @@ class RotatorCommander(salobj.CscCommander):
             )
             await self.remote.cmd_trackStart.start(timeout=STD_TIMEOUT)
             for positions, velocities, tai in cosine_generator():
+                t0 = utils.current_tai()
                 await self.remote.cmd_track.set_start(
                     angle=positions[0],
                     velocity=velocities[0],
                     tai=tai,
                     timeout=STD_TIMEOUT,
                 )
-                await asyncio.sleep(TRACK_INTERVAL)
+                dt = utils.current_tai() - t0
+                sleep_duration = max(0, TRACK_INTERVAL - dt)
+                await asyncio.sleep(sleep_duration)
         except asyncio.CancelledError:
             print("sine cancelled")
         except Exception as e:

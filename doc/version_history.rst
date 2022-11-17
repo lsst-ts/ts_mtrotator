@@ -6,10 +6,24 @@
 Version History
 ###############
 
-v0.25.1
+v0.25.2
 -------
 
-Changes:
+* `RotatorCommander`:
+
+    * Avoid a flood of ``motors`` messages.
+    * Improve the accuracy of the rate at which tracking commands are issued by the ``cosine`` and ``ramp`` commands.
+
+Requires:
+
+* ts_rotator_controller 1.5.0
+* ts_hexrotcomm 0.29
+* ts_salobj 7.1
+* ts_idl 3.4
+* MTRotator and MTMount IDL files built from ts_xml 11.1
+
+v0.25.1
+-------
 
 * `MTRotatorCsc`: call super().start() first in the start method, for compatibility with the Kafka version of ts_salobj.
 * Make test_move and test_tracking_good in tests/test_csc.py more robust by eliminating a race condition.
@@ -26,8 +40,6 @@ Requires:
 
 v0.25.0
 -------
-
-Changes:
 
 * Rename command-line scripts to remove ".py" suffix.
 * Remove the ``run_mock_rotator_pxi.py`` command-line script.
@@ -46,8 +58,6 @@ Requires:
 v0.24.1
 -------
 
-Changes:
-
 * Stop publishing motors.calibrated telemetry.
   The new low-level controller won't provide the necessary information and we want to remove it from the XML.
 
@@ -61,8 +71,6 @@ Requires:
 
 v0.24.0
 -------
-
-Changes:
 
 * `RotatorCsc`: call ``super().start()`` at the beginning of the start method.
   This requires ts_salobj 7.1.
@@ -80,8 +88,6 @@ Requires:
 v0.23.0
 -------
 
-Changes:
-
 * Update for ts_salobj v7, ts_xml 11, and ts_hexrotcomm 0.29, all of which are required.
 
 Requires:
@@ -94,8 +100,6 @@ Requires:
 
 v0.22.0
 -------
-
-Changes:
 
 * Update for ts_hexrotcomm 0.28 and ts_rotator_controller 1.4.0:
 
@@ -115,8 +119,6 @@ Requires:
 v0.21.0
 -------
 
-Changes:
-
 * `RotatorCsc`: changed the interlock event's field from ``detail`` (a string) to ``enabled`` (a boolean).
   This change requires ts_xml 10.2.
   This change also requires ts_hexrotcomm 0.27 (only because it has other changes that require ts_xml 10.2).
@@ -132,8 +134,6 @@ Requires:
 
 v0.20.0
 -------
-
-Changes:
 
 * Updated unit tests for compatibility with ts_salobj 6.8, which is now required.
 * ``setup.cfg``: update to not check version.py.
@@ -151,8 +151,6 @@ Requires:
 v0.19.1
 -------
 
-Changes:
-
 * Update the default host to ``rot-pxi-controller.cp.lsst.org``.
 
 Requires:
@@ -166,8 +164,6 @@ Requires:
 
 v0.19.0
 -------
-
-Changes:
 
 * Update for ts_hexrotcomm 0.23, which is required:
 
@@ -194,8 +190,6 @@ Requires:
 v0.18.0
 -------
 
-Changes:
-
 * Updated for ts_hexrotcomm v0.22.0, which is required.
   Fix a deprecation warning: stop specifying the `isbefore` argument when calling `assert_summary_state`.
 * Updated to use ts_utils, which is required.
@@ -215,8 +209,6 @@ Requires:
 v0.17.0
 -------
 
-Changes:
-
 * Update for ts_xml 10.0, which is required.
 * Write new motors.torque, and rotation.odometer telemetry fields.
 
@@ -233,8 +225,6 @@ Requires:
 v0.16.1
 -------
 
-Changes:
-
 * Fix incorrect frame IDs for messages from the low-level controller.
 
 Requires:
@@ -249,8 +239,6 @@ Requires:
 
 v0.16.0
 -------
-
-Changes:
 
 * Updated for ts_rotator_controller 1.2.2, which is required:
   the telemetry data from the low-level controller now matches what is sent to the EUI.
@@ -267,8 +255,6 @@ Requires:
 
 v0.15.1
 -------
-
-Changes:
 
 * Improve the `inPosition` event by using more appropriate flags from the low-level controller.
 * Improve robustness of test_missing_ccw_telemetry in tests/test_csc.py: cancelling the mock CCW telemetry task did not always work.
@@ -287,8 +273,6 @@ Requires:
 v0.15.0
 -------
 
-Changes:
-
 * Updated for ts_rotator_controller 1.1.6 and ts_hexrotcomm 0.20, both of which are required:
   messages from low-level controller now contain TAI unix time instead of UTC in the header.
 
@@ -304,8 +288,6 @@ Requires:
 
 v0.14.0
 -------
-
-Changes:
 
 * Publish the new ``ccwFollowingError`` telemetry topic. This requires ts_xml 9.
 * Stop publishing the deprecated ``application`` telemetry topic.
@@ -325,8 +307,6 @@ Requires:
 v0.13.0
 -------
 
-Changes:
-
 * `RotatorCsc`: save the configuration schema in code instead of a separate .yaml file.
   This requires ts_salobj 6.3 and ts_hexrotcomm 0.16.
 * Delete obsolete file ``schema/MTRotator.yaml``.
@@ -343,8 +323,6 @@ Requires:
 
 v0.12.0
 -------
-
-Changes:
 
 * Added the ``fault`` command, which requires ts_xml 7.2.
 * Updated to monitor camera cable wrap following error.
@@ -368,8 +346,6 @@ Requires:
 v0.11.0
 -------
 
-Changes:
-
 * Updated to use device-specific TCP/IP ports.
   This requires ts_hexrotcomm v0.14.
 * Update `RotatorCommander` to round motors data to 1 digit to reduce spurious output.
@@ -386,8 +362,6 @@ Requires:
 v0.10.3
 -------
 
-Changes:
-
 * Fix an error in RotatorCommander.
 
 Requires:
@@ -401,8 +375,6 @@ Requires:
 
 v0.10.2
 -------
-
-Changes:
 
 * Work around incorrectly reported time in telemetry headers (DM-28224).
 * Fix incorrect values for ``actualVelocity`` and ``debugActualVelocityB`` in the ``rotation`` telemetry topic.
@@ -419,8 +391,6 @@ Requires:
 v0.10.1
 -------
 
-Changes:
-
 * Update Jenkinsfile.conda to use the shared library.
 * Pin the versions of ts_idl and ts_salobj in conda/meta.yaml.
 
@@ -435,8 +405,6 @@ Requires:
 
 v0.10.0
 -------
-
-Changes:
 
 * Update to use and require ts_hexrotcomm 0.12:
 
@@ -463,8 +431,6 @@ Requires:
 v0.9.0
 ------
 
-Changes:
-
 * Updated to use and require ts_salobj 7.0, ts_idl 2.2, and ts_hexrotcomm 0.11:
 
     * Rename the SAL component ``Rotator`` to ``MTRotator``.
@@ -484,8 +450,6 @@ Requires:
 v0.8.0
 ------
 
-Changes:
-
 * Updated to use and require ts_salobj 6.1 and ts_hexrotcomm 0.10.
 * Update the handling of initial_state in `RotatorCsc`:
 
@@ -504,8 +468,6 @@ Requires:
 v0.7.3
 ------
 
-Changes:
-
 * Use the time in the telemetry header to set the ``rotation`` telemetry topic's time stamp.
 
 Requires:
@@ -521,8 +483,6 @@ Requires:
 v0.7.2
 ------
 
-Changes:
-
 * Fix Jenkinsfile.conda.
 
 Requires:
@@ -536,8 +496,6 @@ Requires:
 
 v0.7.1
 ------
-
-Changes:
 
 * Fix conda build.
 
@@ -553,8 +511,6 @@ Requires:
 
 v0.7.0
 ------
-
-Changes:
 
 * Updated to read telemetry from a newer version of the low-level controller: changes added in https://jira.lsstcorp.org/browse/DM-25994.
 * Updated to write new event and telemetry information added in ts_xml 6.2.
@@ -576,8 +532,6 @@ Requires:
 v0.6.0
 ------
 
-Changes:
-
 * Added missing ``config_dir`` constructor argument to `RotatorCsc`.
 * Use `lsst.ts.salobj.BaseCscTestCase` and `lsst.ts.salobj.CscCommander` instead of the versions in ts_hexrotcomm.
 * Add attribute ``position_jitter`` to `MockMTRotatorController` and update the unit tests to use it.
@@ -595,8 +549,6 @@ Requires:
 v0.5.0
 ------
 
-Changes:
-
 * Make `RotatorCsc` configurable.
 
 Requires:
@@ -610,8 +562,6 @@ Requires:
 
 v0.4.4
 ------
-
-Changes:
 
 * Add ``tests/test_black.py`` to verify that files are formatted with black.
   This requires ts_salobj 5.11 or later.
