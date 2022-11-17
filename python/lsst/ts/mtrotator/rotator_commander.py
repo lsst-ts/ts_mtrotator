@@ -23,13 +23,15 @@ import asyncio
 
 from lsst.ts import salobj
 from lsst.ts import simactuators
+from lsst.ts import utils
 
 STD_TIMEOUT = 5  # timeout for command ack
 
 # How far in advance to set the time field of tracking commands (seconds)
-TRACK_ADVANCE_TIME = 0.1
+TRACK_ADVANCE_TIME = 0.15
 
-TRACK_INTERVAL = 0.1  # interval between tracking updates (seconds)
+# Interval between tracking commands (seconds). 0.05 matches MTPtg.
+TRACK_INTERVAL = 0.05
 
 
 class RotatorCommander(salobj.CscCommander):
@@ -145,13 +147,16 @@ class RotatorCommander(salobj.CscCommander):
             )
             await self.remote.cmd_trackStart.start(timeout=STD_TIMEOUT)
             for positions, velocities, tai in ramp_generator():
+                t0 = utils.current_tai()
                 await self.remote.cmd_track.set_start(
                     angle=positions[0],
                     velocity=velocities[0],
                     tai=tai,
                     timeout=STD_TIMEOUT,
                 )
-                await asyncio.sleep(TRACK_INTERVAL)
+                dt = utils.current_tai() - t0
+                sleep_duration = max(0, TRACK_INTERVAL - dt)
+                await asyncio.sleep(sleep_duration)
         except asyncio.CancelledError:
             print("Ramp cancelled")
         except Exception as e:
@@ -199,13 +204,16 @@ class RotatorCommander(salobj.CscCommander):
             )
             await self.remote.cmd_trackStart.start(timeout=STD_TIMEOUT)
             for positions, velocities, tai in cosine_generator():
+                t0 = utils.current_tai()
                 await self.remote.cmd_track.set_start(
                     angle=positions[0],
                     velocity=velocities[0],
                     tai=tai,
                     timeout=STD_TIMEOUT,
                 )
-                await asyncio.sleep(TRACK_INTERVAL)
+                dt = utils.current_tai() - t0
+                sleep_duration = max(0, TRACK_INTERVAL - dt)
+                await asyncio.sleep(sleep_duration)
         except asyncio.CancelledError:
             print("sine cancelled")
         except Exception as e:
