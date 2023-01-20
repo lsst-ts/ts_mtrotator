@@ -6,6 +6,19 @@
 Version History
 ###############
 
+v0.26.0
+-------
+
+* `RotatorCsc`: write the clockOffset event. This requires ts_xml 15.
+
+Requires:
+
+* ts_rotator_controller 1.5.0
+* ts_hexrotcomm 0.29
+* ts_salobj 7.1
+* ts_idl 3.4
+* MTRotator and MTMount IDL files built from ts_xml 15
+
 v0.25.2
 -------
 
