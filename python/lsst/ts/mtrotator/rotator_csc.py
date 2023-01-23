@@ -34,6 +34,11 @@ from . import enums
 from . import structs
 from . import mock_controller
 
+# Approximate interval between output of the clockOffset event (seconds).
+# The clockOffset event is output when the first new telemetry is received
+# after the timer has expired.
+CLOCK_OFFSET_EVENT_INTERVAL = 1
+
 # Maximum allowed age of the camera cable wrap telemetry data
 # when checking following error.
 MAX_CCW_TELEMETRY_AGE = 1
@@ -103,6 +108,10 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         self._faulting = False
         self._prev_flags_tracking_success = False
         self._prev_flags_tracking_lost = False
+
+        # telemetry_callback should output the clockOffset event
+        # for the next telemetry received when this timer expires
+        self.next_clock_offset_task = utils.make_done_future()
 
         super().__init__(
             name="MTRotator",
@@ -194,6 +203,10 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                     await self.command_llv_fault()
         except Exception:
             self.log.exception("check_ccw_following_error failed")
+
+    async def close_tasks(self):
+        self.next_clock_offset_task.cancel()
+        await super().close_tasks()
 
     async def configure(self, config):
         self.config = config
@@ -379,9 +392,18 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             TCP/IP client.
         """
         tai_unix = client.header.tai_sec + client.header.tai_nsec / 1e9
+
+        if self.next_clock_offset_task.done():
+            clock_offset = tai_unix - utils.current_tai()
+            await self.evt_clockOffset.set_write(offset=clock_offset)
+            self.next_clock_offset_task = asyncio.create_task(
+                asyncio.sleep(CLOCK_OFFSET_EVENT_INTERVAL)
+            )
+
         if self._tracking_started_telemetry_counter > 0:
             self._tracking_started_telemetry_counter -= 1
         await self.evt_summaryState.set_write(summaryState=self.summary_state)
+
         # Strangely telemetry.state, offline_substate and enabled_substate
         # are all floats from the controller. But they should only have
         # integer value, so I output them as integers.

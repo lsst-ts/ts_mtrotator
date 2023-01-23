@@ -24,11 +24,14 @@ import contextlib
 import pathlib
 import unittest
 
+import pytest
+
 from lsst.ts import utils
 from lsst.ts import hexrotcomm
 from lsst.ts import salobj
 from lsst.ts import mtrotator
 from lsst.ts.idl.enums.MTRotator import ControllerState, EnabledSubstate, ErrorCode
+from lsst.ts.mtrotator.rotator_csc import CLOCK_OFFSET_EVENT_INTERVAL
 
 STD_TIMEOUT = 30  # timeout for command ack
 
@@ -490,6 +493,20 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.check_standard_state_transitions(
                 enabled_commands=enabled_commands
             )
+
+    async def test_clock_offset(self):
+        async with self.make_csc(initial_state=salobj.State.ENABLED):
+            data = await self.remote.evt_clockOffset.next(
+                flush=False, timeout=STD_TIMEOUT
+            )
+            private_sndStamp0 = data.private_sndStamp
+            assert data.offset == pytest.approx(0, abs=0.2)
+            data = await self.remote.evt_clockOffset.next(
+                flush=False, timeout=STD_TIMEOUT + CLOCK_OFFSET_EVENT_INTERVAL
+            )
+            interval = data.private_sndStamp - private_sndStamp0
+            assert data.offset == pytest.approx(0, abs=0.2)
+            assert interval > CLOCK_OFFSET_EVENT_INTERVAL - 0.2
 
     async def test_configure_acceleration(self):
         """Test the configureAcceleration command."""
