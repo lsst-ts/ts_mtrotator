@@ -6,6 +6,21 @@
 Version History
 ###############
 
+v0.26.1
+-------
+
+* pre-commit: update black to 23.1.0, isort to 5.12.0, mypy to 1.0.0, and pre-commit-hooks to v4.4.0.
+* ``Jenkinsfile``: do not run as root.
+* ``conda/meta.yaml``: remove unneeded entry_points section.
+
+Requires:
+
+* ts_rotator_controller 1.5.0
+* ts_hexrotcomm 0.29
+* ts_salobj 7.1
+* ts_idl 3.4
+* MTRotator and MTMount IDL files built from ts_xml 15
+
 v0.26.0
 -------
 
