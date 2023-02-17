@@ -34,5 +34,4 @@ separated by spaces, then <return>. "help" is a command.
 """
 from lsst.ts.mtrotator import command_mtrotator
 
-
 command_mtrotator()

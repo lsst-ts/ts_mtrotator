@@ -21,9 +21,7 @@ __all__ = ["RotatorCommander", "command_mtrotator"]
 
 import asyncio
 
-from lsst.ts import salobj
-from lsst.ts import simactuators
-from lsst.ts import utils
+from lsst.ts import salobj, simactuators, utils
 
 STD_TIMEOUT = 5  # timeout for command ack
 
