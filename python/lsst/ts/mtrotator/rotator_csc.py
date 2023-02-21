@@ -23,16 +23,11 @@ __all__ = ["RotatorCsc", "run_mtrotator"]
 
 import asyncio
 
-from lsst.ts import utils
-from lsst.ts import salobj
-from lsst.ts import hexrotcomm
-from lsst.ts.idl.enums.MTRotator import EnabledSubstate, ApplicationStatus
-from . import __version__
+from lsst.ts import hexrotcomm, salobj, utils
+from lsst.ts.idl.enums.MTRotator import ApplicationStatus, EnabledSubstate
+
+from . import __version__, constants, enums, mock_controller, structs
 from .config_schema import CONFIG_SCHEMA
-from . import constants
-from . import enums
-from . import structs
-from . import mock_controller
 
 # Approximate interval between output of the clockOffset event (seconds).
 # The clockOffset event is output when the first new telemetry is received

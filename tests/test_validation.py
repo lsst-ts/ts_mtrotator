@@ -22,9 +22,7 @@
 import unittest
 
 import jsonschema
-
-from lsst.ts import salobj
-from lsst.ts import mtrotator
+from lsst.ts import mtrotator, salobj
 
 
 class ValidationTestCase(unittest.TestCase):

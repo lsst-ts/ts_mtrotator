@@ -23,5 +23,4 @@
 """An example of how to run a CSC"""
 from lsst.ts.mtrotator import run_mtrotator
 
-
 run_mtrotator()

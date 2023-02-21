@@ -24,18 +24,15 @@ import asyncio
 import math
 import random
 
-from lsst.ts import utils
-from lsst.ts import hexrotcomm
-from lsst.ts import simactuators
+from lsst.ts import hexrotcomm, simactuators, utils
 from lsst.ts.idl.enums.MTRotator import (
+    ApplicationStatus,
     ControllerState,
     EnabledSubstate,
     OfflineSubstate,
-    ApplicationStatus,
 )
-from . import constants
-from . import enums
-from . import structs
+
+from . import constants, enums, structs
 
 # Maximum time between track commands (seconds)
 # The real controller may use 0.15
