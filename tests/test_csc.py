@@ -25,11 +25,7 @@ import pathlib
 import unittest
 
 import pytest
-
-from lsst.ts import utils
-from lsst.ts import hexrotcomm
-from lsst.ts import salobj
-from lsst.ts import mtrotator
+from lsst.ts import hexrotcomm, mtrotator, salobj, utils
 from lsst.ts.idl.enums.MTRotator import ControllerState, EnabledSubstate, ErrorCode
 from lsst.ts.mtrotator.rotator_csc import CLOCK_OFFSET_EVENT_INTERVAL
 
