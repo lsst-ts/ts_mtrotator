@@ -1,11 +1,17 @@
-.cache
+__pycache__
+*.egg
+*.egg-info
+*.log
+
+# Constructed by the build system
+version.py
+
+# Pytest
+.coverage
 .hypothesis
 .pytest_cache
-.coverage*
 pytest_session.txt
-.scon*
-*.log
-__pycache__
-.vscode
 tests/.tests
-python/lsst/ts/mtrotator/version.py
+
+# Editors
+.vscode
