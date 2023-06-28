@@ -6,6 +6,20 @@
 Version History
 ###############
 
+v1.1.0
+------
+
+* Updated for low-level controller 2.0.
+  This includes a simpler state machine and some new configuration fields.
+
+Requires:
+
+* ts_rotator_controller 2.0
+* ts_hexrotcomm 1.1
+* ts_salobj 7.1
+* ts_idl 3.4
+* MTHexapod, MTMount, and MTRotator IDL files built from ts_xml 14.
+
 v1.0.0
 ------
 
@@ -15,7 +29,7 @@ v1.0.0
 
 Requires:
 
-* ts_hexapod_controller 1.4.0
+* ts_rotator_controller 1.5.0
 * ts_hexrotcomm 0.29
 * ts_salobj 7.1
 * ts_idl 3.4
