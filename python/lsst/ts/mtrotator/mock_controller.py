@@ -53,12 +53,6 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         this is recommended for unit tests, to avoid collision
         with other tests.
         Do not specify 0 with host=None (see Raises section).
-    host : `str` or `None`, optional
-        IP address for this server. Typically "127.0.0.1" (the default)
-        for an IPV4 server and "::" for an IPV6 server.
-        If `None` then bind to all network interfaces and run both
-        IPV4 and IPV6 servers.
-        Do not specify `None` with port=0 (see Raises section).
     initial_state : `lsst.ts.idl.enums.MTRotator.ControllerState` (optional)
         Initial state of mock controller.
 
