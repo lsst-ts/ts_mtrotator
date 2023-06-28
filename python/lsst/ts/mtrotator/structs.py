@@ -76,8 +76,6 @@ class Telemetry(ctypes.Structure):
         ("track_mode", ctypes.c_double),
         ("state", ctypes.c_double),
         ("enabled_substate", ctypes.c_double),
-        ("offline_substate", ctypes.c_double),
-        ("test_state", ctypes.c_double),
         ("rate_cmd_ch_a", ctypes.c_double),
         ("rate_cmd_ch_b", ctypes.c_double),
         ("rotator_fb", ctypes.c_double),
