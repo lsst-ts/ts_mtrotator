@@ -69,10 +69,7 @@ Enable With the EUI
 -------------------
 
 The control mode must be ``DDS`` in order for the CSC to control the low-level controller.
-If the control mode is ``GUI`` then you can use the EUI (aka GUI) to change it to ``DDS`` as follows:
-
-* In the main panel: change the state to ``state=Offline, offline_substate=Available``.
-* Go to the ``Parameters`` panel to change the control mode to ``DDS``.
+If the control mode is ``GUI``, use the EUI's ``Parameters`` panel to change it to ``DDS``.
 
 Notes:
 
