@@ -24,7 +24,11 @@ __all__ = ["RotatorCsc", "run_mtrotator"]
 import asyncio
 
 from lsst.ts import hexrotcomm, salobj, utils
-from lsst.ts.idl.enums.MTRotator import ApplicationStatus, EnabledSubstate
+from lsst.ts.idl.enums.MTRotator import (
+    ApplicationStatus,
+    ControllerState,
+    EnabledSubstate,
+)
 
 from . import __version__, constants, enums, mock_controller, structs
 from .config_schema import CONFIG_SCHEMA
@@ -126,6 +130,55 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         await super().start()
         await self.mtmount_remote.start_task
         await self.evt_inPosition.set_write(inPosition=False, force_output=True)
+
+    # TODO DM-39787: move this method to BaseCsc in ts_hexrotcomm
+    # once MTHexapod supports MTRotator's simplified states.
+    async def enable_controller(self):
+        """Enable the low-level controller.
+
+        The version in hexrotcomm handles the original, complicated set of
+        states. MTRotator has since been updated with simplified states.
+
+        Raises
+        ------
+        lsst.ts.salobj.ExpectedError
+            If the low-level controller is in fault state and the fault
+            cannot be cleared. Or if a state transition command fails
+            (which is unlikely).
+        """
+        self.assert_commandable()
+
+        self.log.info(
+            f"Enable low-level controller; initial state={self.client.telemetry.state}"
+        )
+
+        if self.client.telemetry.state == ControllerState.ENABLED:
+            return
+
+        if self.client.telemetry.state == ControllerState.FAULT:
+            # Start by issuing the clearError command.
+            self.log.info("Clearing low-level controller fault state")
+            await self.run_command(
+                code=self.CommandCode.SET_STATE,
+                param1=hexrotcomm.SetStateParam.CLEAR_ERROR,
+            )
+
+        if self.client.telemetry.state != ControllerState.STANDBY:
+            raise salobj.ExpectedError(
+                f"Before enable: low-level controller state={self.client.telemetry.state}; "
+                f"expected {ControllerState.STANDBY!r}"
+            )
+
+        try:
+            await self.run_command(
+                code=self.CommandCode.SET_STATE,
+                param1=hexrotcomm.SetStateParam.ENABLE,
+            )
+        except Exception as e:
+            print(f"LLC enable failed: {e!r}")
+            raise
+
+        await self.wait_controller_state(ControllerState.ENABLED)
 
     async def check_ccw_following_error(self):
         """Check the camera cable wrap following error.
@@ -374,7 +427,10 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         self.log.debug("Sending the low-level controller to fault state")
         try:
             self._faulting = True
-            await self.run_command(code=enums.CommandCode.FAULT)
+            await self.run_command(
+                code=self.CommandCode.SET_STATE,
+                param1=hexrotcomm.SetStateParam.FAULT,
+            )
         finally:
             self._faulting = False
 
@@ -399,12 +455,11 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             self._tracking_started_telemetry_counter -= 1
         await self.evt_summaryState.set_write(summaryState=self.summary_state)
 
-        # Strangely telemetry.state, offline_substate and enabled_substate
-        # are all floats from the controller. But they should only have
-        # integer value, so I output them as integers.
+        # Strangely telemetry.state and enabled_substate are floats
+        # from the controller. But they should only have integer value,
+        # so I output them as integers.
         await self.evt_controllerState.set_write(
             controllerState=int(client.telemetry.state),
-            offlineSubstate=int(client.telemetry.offline_substate),
             enabledSubstate=int(client.telemetry.enabled_substate),
             applicationStatus=client.telemetry.application_status,
         )
@@ -481,11 +536,14 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 self.check_ccw_following_error()
             )
 
+    # TODO DM-39787: remove the initial_ctrl_state argument
+    # (which is ignored) once MTHexapod supports
+    # MTRotator's simplified states.
     def make_mock_controller(self, initial_ctrl_state):
         return mock_controller.MockMTRotatorController(
             log=self.log,
             port=0,
-            initial_state=initial_ctrl_state,
+            initial_state=ControllerState.STANDBY,
         )
 
 

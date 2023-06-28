@@ -234,15 +234,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 # Wait for and check the intermediate controller state,
                 # so unit test code only needs to check the final state
                 # (don't swallow the final state, for backwards compatibility).
-                for controller_state in (
-                    ControllerState.OFFLINE,
-                    ControllerState.STANDBY,
-                    ControllerState.DISABLED,
-                ):
-                    await self.assert_next_sample(
-                        topic=self.remote.evt_controllerState,
-                        controllerState=controller_state,
-                    )
+                await self.assert_next_sample(
+                    topic=self.remote.evt_controllerState,
+                    controllerState=ControllerState.STANDBY,
+                )
             try:
                 yield
             finally:
@@ -462,15 +457,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
 
             await self.remote.cmd_enable.set_start(timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.ENABLED)
-            for controller_state in (
-                ControllerState.OFFLINE,
-                ControllerState.STANDBY,
-                ControllerState.DISABLED,
-            ):
-                await self.assert_next_sample(
-                    topic=self.remote.evt_controllerState,
-                    controllerState=controller_state,
-                )
+            await self.assert_next_sample(
+                topic=self.remote.evt_controllerState,
+                controllerState=ControllerState.STANDBY,
+            )
             await self.assert_next_sample(
                 topic=self.remote.evt_controllerState,
                 controllerState=ControllerState.ENABLED,
