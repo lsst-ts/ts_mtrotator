@@ -119,6 +119,11 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         config.following_error_threshold = 0.1  # deg
         config.track_success_pos_threshold = 0.01  # deg
         config.tracking_lost_timeout = 5  # sec
+        config.emergency_jerk_limit = 10  # m/sec^3
+        config.emergency_accel_limit = 1.5  # m/sec^2
+        config.disable_limit_max_time = 120  # sec
+        config.max_velocity_limit = 5  # deg/sec
+
         telemetry = structs.Telemetry()
         telemetry.set_pos = math.nan
         self.tracking_timer_task = utils.make_done_future()
