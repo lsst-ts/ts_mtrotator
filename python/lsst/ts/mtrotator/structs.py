@@ -37,6 +37,10 @@ class Config(ctypes.Structure):
         ("following_error_threshold", ctypes.c_double),
         ("track_success_pos_threshold", ctypes.c_double),
         ("tracking_lost_timeout", ctypes.c_double),
+        ("emergency_jerk_limit", ctypes.c_double),
+        ("emergency_accel_limit", ctypes.c_double),
+        ("disable_limit_max_time", ctypes.c_double),
+        ("max_velocity_limit", ctypes.c_double),
     ]
 
 
