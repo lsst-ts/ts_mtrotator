@@ -267,14 +267,20 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         client : `lsst.ts.hexrotcomm.CommandTelemetryClient`
             TCP/IP client.
         """
+        config = client.config
         await self.evt_configuration.set_write(
-            positionAngleUpperLimit=client.config.upper_pos_limit,
-            velocityLimit=client.config.velocity_limit,
-            accelerationLimit=client.config.accel_limit,
-            positionAngleLowerLimit=client.config.lower_pos_limit,
-            followingErrorThreshold=client.config.following_error_threshold,
-            trackingSuccessPositionThreshold=client.config.track_success_pos_threshold,
-            trackingLostTimeout=client.config.tracking_lost_timeout,
+            positionAngleLowerLimit=config.lower_pos_limit,
+            positionAngleUpperLimit=config.upper_pos_limit,
+            velocityLimit=config.velocity_limit,
+            accelerationLimit=config.accel_limit,
+            emergencyAccelerationLimit=config.emergency_accel_limit,
+            emergencyJerkLimit=config.emergency_jerk_limit,
+            positionErrorThreshold=config.pos_error_threshold,
+            followingErrorThreshold=config.following_error_threshold,
+            trackingSuccessPositionThreshold=config.track_success_pos_threshold,
+            trackingLostTimeout=config.tracking_lost_timeout,
+            disableLimitMaxTime=config.disable_limit_max_time,
+            maxConfigurableVelocityLimit=config.max_velocity_limit,
         )
 
     async def connect_callback(self, client):
