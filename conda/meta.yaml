@@ -27,16 +27,15 @@ test:
 
 requirements:
   host:
-    - python
+    - python {{ python }}
     - pip
-    - setuptools_scm
-    - setuptools
-    - pytest-runner
+    - setuptools_scm {{ setuptools_scm }}
+    - setuptools {{ setuptools }}
   run:
-    - python
-    - setuptools
-    - setuptools_scm
-    - ts-idl {{ idl_version }}
-    - ts-salobj {{ salobj_version }}
+    - python {{ python }}
+    - setuptools {{ setuptools }}
+    - setuptools_scm {{ setuptools_scm }}
+    - ts-idl
+    - ts-salobj
     - ts-hexrotcomm
     - ts-simactuators
