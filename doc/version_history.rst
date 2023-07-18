@@ -6,6 +6,11 @@
 Version History
 ###############
 
+v1.0.1
+------
+
+* Update conda recipe.
+
 v1.0.0
 ------
 
