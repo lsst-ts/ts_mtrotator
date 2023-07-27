@@ -6,6 +6,11 @@
 Version History
 ###############
 
+v1.0.2
+------
+
+* Switch to python generic in conda recipe.
+
 v1.0.1
 ------
 
