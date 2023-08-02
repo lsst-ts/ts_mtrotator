@@ -90,6 +90,32 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             rotation_data = await self.remote.tel_rotation.next(
                 flush=True, timeout=STD_TIMEOUT
             )
+        self.prev_odometer = rotation_data.odometer
+
+        for _ in range(nskip + 1):
+            motors_data = await self.remote.tel_motors.next(
+                flush=True, timeout=STD_TIMEOUT
+            )
+        acceleration = self.csc.mock_ctrl.rotator.path.at(
+            motors_data.private_sndStamp
+        ).acceleration
+        desired_current = acceleration * self.csc.mock_ctrl.current_per_acceleration
+        desired_torque = acceleration * self.csc.mock_ctrl.torque_per_acceleration
+        print(
+            f"current={motors_data.current[0]:0.8f}; "
+            f"delta={abs(motors_data.current[0] - desired_current):0.8f}"
+        )
+        print(
+            f"torque={motors_data.torque[0]:0.8f}; "
+            f"delta={abs(motors_data.torque[0] - desired_torque):0.8f}"
+        )
+        self.assertAlmostEqual(motors_data.current[0], desired_current, delta=slop)
+        self.assertAlmostEqual(motors_data.torque[0], desired_torque, delta=0.01)
+        # The mock controller publishes exactly the same current and torque
+        # for both motors (though that is not realistic).
+        assert motors_data.current[0] == motors_data.current[1]
+        assert motors_data.torque[0] == motors_data.torque[1]
+
         path_segment = self.csc.mock_ctrl.rotator.path.at(rotation_data.timestamp)
         # Print the values to get some idea of how much slop is needed
         # and so it is easier to determine which test failed
@@ -131,31 +157,6 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 f"prev_odometer={self.prev_odometer:0.8f}"
             )
             self.assertGreaterEqual(rotation_data.odometer, self.prev_odometer)
-        self.prev_odometer = rotation_data.odometer
-
-        for _ in range(nskip + 1):
-            motors_data = await self.remote.tel_motors.next(
-                flush=True, timeout=STD_TIMEOUT
-            )
-        acceleration = self.csc.mock_ctrl.rotator.path.at(
-            motors_data.private_sndStamp
-        ).acceleration
-        desired_current = acceleration * self.csc.mock_ctrl.current_per_acceleration
-        desired_torque = acceleration * self.csc.mock_ctrl.torque_per_acceleration
-        print(
-            f"current={motors_data.current[0]:0.8f}; "
-            f"delta={abs(motors_data.current[0] - desired_current):0.8f}"
-        )
-        print(
-            f"torque={motors_data.torque[0]:0.8f}; "
-            f"delta={abs(motors_data.torque[0] - desired_torque):0.8f}"
-        )
-        self.assertAlmostEqual(motors_data.current[0], desired_current, delta=slop)
-        self.assertAlmostEqual(motors_data.torque[0], desired_torque, delta=0.01)
-        # The mock controller publishes exactly the same current and torque
-        # for both motors (though that is not realistic).
-        assert motors_data.current[0] == motors_data.current[1]
-        assert motors_data.torque[0] == motors_data.torque[1]
 
     @contextlib.asynccontextmanager
     async def make_csc(
