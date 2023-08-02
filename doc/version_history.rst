@@ -6,6 +6,11 @@
 Version History
 ###############
 
+v1.0.3
+------
+
+* Fix the test case: ``test_track_good()``.
+
 v1.0.2
 ------
 
