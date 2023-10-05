@@ -25,10 +25,11 @@ import math
 import random
 
 from lsst.ts import hexrotcomm, simactuators, utils
-from lsst.ts.idl.enums.MTRotator import (
+from lsst.ts.xml.enums.MTRotator import (
     ApplicationStatus,
     ControllerState,
     EnabledSubstate,
+    FaultSubstate,
 )
 
 from . import constants, enums, structs
@@ -52,7 +53,7 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         this is recommended for unit tests, to avoid collision
         with other tests.
         Do not specify 0 with host=None (see Raises section).
-    initial_state : `lsst.ts.idl.enums.MTRotator.ControllerState` (optional)
+    initial_state : `lsst.ts.xml.enums.MTRotator.ControllerState` (optional)
         Initial state of mock controller.
 
     Raises
@@ -123,6 +124,7 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         config.emergency_accel_limit = 1.5  # m/sec^2
         config.disable_limit_max_time = 120  # sec
         config.max_velocity_limit = 5  # deg/sec
+        config.drives_enabled = False
 
         telemetry = structs.Telemetry()
         telemetry.set_pos = math.nan
@@ -171,6 +173,7 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
             enums.CommandCode.CONFIG_VEL: self.do_config_vel,
             enums.CommandCode.CONFIG_ACCEL: self.do_config_accel,
             enums.CommandCode.TRACK_VEL_CMD: self.do_track_vel_cmd,
+            enums.CommandCode.ENABLE_DRIVES: self.do_enable_drives,
         }
 
         super().__init__(
@@ -296,6 +299,10 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         self.tracking_timer_task = asyncio.create_task(self.tracking_timer())
         self.track_vel_cmd_seen = True
 
+    async def do_enable_drives(self, command):
+        self.config.drives_enabled = bool(command.param1)
+        await self.write_config()
+
     def set_state(self, state):
         # Override to stop the rotator if not enabled
         super().set_state(state)
@@ -395,5 +402,12 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
             self.telemetry.motor_encoder_ch_a = 0
             self.telemetry.motor_encoder_ch_b = 0
             self.telemetry.rotator_pos_deg = curr_pos
+
+            # Assign the FAULT sub-state
+            if self.telemetry.state == ControllerState.STANDBY:
+                self.telemetry.fault_substate = FaultSubstate.NO_ERROR
+            elif self.telemetry.state == ControllerState.FAULT:
+                self.telemetry.fault_substate = FaultSubstate.WAIT_CLEAR_ERROR
+
         except Exception:
             self.log.exception("update_telemetry failed; output incomplete telemetry")

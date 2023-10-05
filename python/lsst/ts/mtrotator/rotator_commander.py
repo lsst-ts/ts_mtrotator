@@ -39,7 +39,7 @@ class RotatorCommander(salobj.CscCommander):
 
     Parameters
     ----------
-    enable : bool
+    enable : `bool`
         Enable the CSC when first connecting?
     """
 
