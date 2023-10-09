@@ -556,9 +556,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             ],
         )
         if hasattr(self.tel_electrical.DataType(), "copleyFaultStatus"):
-            electrical["copleyFaultStatus"] = int(
-                client.telemetry.copley_fault_status_register
-            )
+            electrical[
+                "copleyFaultStatus"
+            ] = client.telemetry.copley_fault_status_register
 
         await self.tel_electrical.set_write(**electrical)
 
