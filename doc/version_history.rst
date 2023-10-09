@@ -6,9 +6,11 @@
 Version History
 ###############
 
-v1.1.1
+v1.1.0
 ------
 
+* Updated for low-level controller 2.0.
+  This includes a simpler state machine and some new configuration fields.
 * Add the ``drives_enabled`` field to **Config** class.
 * Add the ``motor_current`` field to **Telemetry** class.
 * Publish the ``copleyFaultStatus`` data.
@@ -22,20 +24,8 @@ Requires:
 * ts_rotator_controller 1.6.1
 * ts_hexrotcomm 1.1.2
 * ts_salobj 8.0
-* ts_xml 21.0
-
-v1.1.0
-------
-
-* Updated for low-level controller 2.0.
-  This includes a simpler state machine and some new configuration fields.
-
-Requires:
-
-* ts_rotator_controller 1.6.1
-* ts_hexrotcomm 1.1
-* ts_salobj 7.1
 * ts_idl 3.4
+* ts_xml 20.1.0
 * MTHexapod, MTMount, and MTRotator IDL files built from ts_xml 14.
 
 v1.0.3

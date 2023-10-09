@@ -302,7 +302,11 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             TCP/IP client.
         """
         config = client.config
-        await self.evt_configuration.set_write(
+
+        # This is to keep the backward compatibility of ts_xml v20.0.0 that
+        # does not have the 'drivesEnabled' defined in xml.
+        # TODO: Remove this after ts_xml v20.1.0.
+        configuration = dict(
             positionAngleLowerLimit=config.lower_pos_limit,
             positionAngleUpperLimit=config.upper_pos_limit,
             velocityLimit=config.velocity_limit,
@@ -315,8 +319,11 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             trackingLostTimeout=config.tracking_lost_timeout,
             disableLimitMaxTime=config.disable_limit_max_time,
             maxConfigurableVelocityLimit=config.max_velocity_limit,
-            drivesEnabled=config.drives_enabled,
         )
+        if hasattr(self.evt_configuration.DataType(), "drivesEnabled"):
+            configuration["drivesEnabled"] = config.drives_enabled
+
+        await self.evt_configuration.set_write(**configuration)
 
     async def connect_callback(self, client):
         await super().connect_callback(client)
@@ -502,12 +509,22 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # Strangely telemetry.state, fault_substate, and enabled_substate are
         # floats from the controller. But they should only have integer value,
         # so I output them as integers.
-        await self.evt_controllerState.set_write(
+
+        # This is to keep the backward compatibility of ts_xml v20.0.0 that
+        # does not have the 'faultSubstate' defined in xml.
+        # TODO: Remove this after ts_xml v20.1.0.
+        controller_state_data = dict(
             controllerState=int(client.telemetry.state),
-            faultSubstate=int(client.telemetry.fault_substate),
             enabledSubstate=int(client.telemetry.enabled_substate),
             applicationStatus=client.telemetry.application_status,
         )
+
+        if hasattr(self.evt_controllerState.DataType(), "faultSubstate"):
+            controller_state_data["faultSubstate"] = int(
+                client.telemetry.fault_substate
+            )
+
+        await self.evt_controllerState.set_write(**controller_state_data)
 
         await self.tel_rotation.set_write(
             demandPosition=client.telemetry.demand_pos,
@@ -524,7 +541,11 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             odometer=client.telemetry.rotator_odometer,
             timestamp=tai_unix,
         )
-        await self.tel_electrical.set_write(
+
+        # This is to keep the backward compatibility of ts_xml v20.0.0 that
+        # does not have the 'copleyFaultStatus' defined in xml.
+        # TODO: Remove this after ts_xml v20.1.0.
+        electrical = dict(
             copleyStatusWordDrive=[
                 client.telemetry.status_word_drive0,
                 client.telemetry.status_word_drive0_axis_b,
@@ -533,8 +554,14 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 client.telemetry.latching_fault_status_register,
                 client.telemetry.latching_fault_status_register_axis_b,
             ],
-            copleyFaultStatus=client.telemetry.copley_fault_status_register,
         )
+        if hasattr(self.tel_electrical.DataType(), "copleyFaultStatus"):
+            electrical["copleyFaultStatus"] = int(
+                client.telemetry.copley_fault_status_register
+            )
+
+        await self.tel_electrical.set_write(**electrical)
+
         await self.tel_motors.set_write(
             raw=[
                 client.telemetry.motor_encoder_ch_a,
@@ -602,7 +629,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             default=False,
             help="""
                  Bypass the check of camera cable wrapper (CCW) or not. This is
-                 for the test purpose only.
+                 for test purpose only.
                  """,
         )
 
