@@ -11,13 +11,21 @@ v1.1.0
 
 * Updated for low-level controller 2.0.
   This includes a simpler state machine and some new configuration fields.
+* Add the ``drives_enabled`` field to **Config** class.
+* Add the ``motor_current`` field to **Telemetry** class.
+* Publish the ``copleyFaultStatus`` data.
+* Add the ``ENABLE_DRIVES`` field to **CommandCode** enum.
+* Import the enums from **ts_xml** instead of **ts_idl**.
+* Update the ``.ts_pre_commit_config.yaml``.
+* Add the argument to bypass the check of camera cable wrapper.
 
 Requires:
 
-* ts_rotator_controller 2.0
-* ts_hexrotcomm 1.1
-* ts_salobj 7.1
+* ts_rotator_controller 1.6.1
+* ts_hexrotcomm 1.1.2
+* ts_salobj 8.0
 * ts_idl 3.4
+* ts_xml 20.1.0
 * MTHexapod, MTMount, and MTRotator IDL files built from ts_xml 14.
 
 v1.0.3
