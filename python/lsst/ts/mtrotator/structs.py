@@ -37,6 +37,11 @@ class Config(ctypes.Structure):
         ("following_error_threshold", ctypes.c_double),
         ("track_success_pos_threshold", ctypes.c_double),
         ("tracking_lost_timeout", ctypes.c_double),
+        ("emergency_jerk_limit", ctypes.c_double),
+        ("emergency_accel_limit", ctypes.c_double),
+        ("disable_limit_max_time", ctypes.c_double),
+        ("max_velocity_limit", ctypes.c_double),
+        ("drives_enabled", ctypes.c_bool),
     ]
 
 
@@ -76,8 +81,7 @@ class Telemetry(ctypes.Structure):
         ("track_mode", ctypes.c_double),
         ("state", ctypes.c_double),
         ("enabled_substate", ctypes.c_double),
-        ("offline_substate", ctypes.c_double),
-        ("test_state", ctypes.c_double),
+        ("fault_substate", ctypes.c_double),
         ("rate_cmd_ch_a", ctypes.c_double),
         ("rate_cmd_ch_b", ctypes.c_double),
         ("rotator_fb", ctypes.c_double),

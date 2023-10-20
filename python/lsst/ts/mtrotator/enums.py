@@ -32,6 +32,7 @@ class CommandCode(enum.IntEnum):
     I have reworded them for clarity.
     """
 
+    ENABLE_DRIVES = 0x7000
     FAULT = 0x8001
     SET_STATE = 0x8000
     SET_ENABLED_SUBSTATE = 0x8002

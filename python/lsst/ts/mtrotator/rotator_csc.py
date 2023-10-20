@@ -21,10 +21,16 @@
 
 __all__ = ["RotatorCsc", "run_mtrotator"]
 
+import argparse
 import asyncio
+import typing
 
 from lsst.ts import hexrotcomm, salobj, utils
-from lsst.ts.idl.enums.MTRotator import ApplicationStatus, EnabledSubstate
+from lsst.ts.xml.enums.MTRotator import (
+    ApplicationStatus,
+    ControllerState,
+    EnabledSubstate,
+)
 
 from . import __version__, constants, enums, mock_controller, structs
 from .config_schema import CONFIG_SCHEMA
@@ -60,6 +66,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         * 0: regular operation.
         * 1: simulation: use a mock low level controller.
+    bypass_ccw : `bool`, optional
+        Bypass the check of camera cable wrapper (CCW) or not. (the default is
+        False)
 
     Raises
     ------
@@ -71,7 +80,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     -----
     **Error Codes**
 
-    See `lsst.ts.idl.enums.MTRotator.ErrorCode`
+    See `lsst.ts.xml.enums.MTRotator.ErrorCode`
     """
 
     valid_simulation_modes = [0, 1]
@@ -83,6 +92,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         initial_state=salobj.State.STANDBY,
         override="",
         simulation_mode=0,
+        bypass_ccw=False,
     ):
         self.client = None
         self.mock_ctrl = None
@@ -93,6 +103,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # This solves the problem of allowing the track command
         # immediately after the trackStart, before telemetry is received.
         self._tracking_started_telemetry_counter = 0
+
+        self._bypass_ccw = bypass_ccw
 
         # The sequential number of times the camera cable wrap following error
         # has been too large.
@@ -126,6 +138,81 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         await super().start()
         await self.mtmount_remote.start_task
         await self.evt_inPosition.set_write(inPosition=False, force_output=True)
+
+    # TODO DM-39787: move this method to BaseCsc in ts_hexrotcomm
+    # once MTHexapod supports MTRotator's simplified states.
+    async def enable_controller(self):
+        """Enable the low-level controller.
+
+        The version in hexrotcomm handles the original, complicated set of
+        states. MTRotator has since been updated with simplified states.
+
+        Raises
+        ------
+        lsst.ts.salobj.ExpectedError
+            If the low-level controller is in fault state and the fault
+            cannot be cleared. Or if a state transition command fails
+            (which is unlikely).
+        """
+        self.assert_commandable()
+
+        self.log.info(
+            f"Enable low-level controller; initial state={self.client.telemetry.state}"
+        )
+
+        if self.client.telemetry.state == ControllerState.ENABLED:
+            return
+
+        if self.client.telemetry.state == ControllerState.FAULT:
+            # Start by issuing the clearError command.
+            self.log.info("Clearing low-level controller fault state")
+            await self.run_command(
+                code=self.CommandCode.SET_STATE,
+                param1=hexrotcomm.SetStateParam.CLEAR_ERROR,
+            )
+
+        if self.client.telemetry.state != ControllerState.STANDBY:
+            raise salobj.ExpectedError(
+                f"Before enable: low-level controller state={self.client.telemetry.state}; "
+                f"expected {ControllerState.STANDBY!r}"
+            )
+
+        # Enable the drives first
+        await self._enable_drives(True)
+
+        try:
+            await self.run_command(
+                code=self.CommandCode.SET_STATE,
+                param1=hexrotcomm.SetStateParam.ENABLE,
+            )
+        except Exception as e:
+            print(f"LLC enable failed: {e!r}")
+            raise
+
+        await self.wait_controller_state(ControllerState.ENABLED)
+
+    async def _enable_drives(self, status, time=1.0):
+        """Enable the drives.
+
+        Parameters
+        ----------
+        status : `bool`
+            True if enable the drives. Otherwise, False.
+        time : `float`, optional
+            Sleep time in second. (the default is 1.0)
+        """
+
+        await self.run_command(
+            code=self.CommandCode.ENABLE_DRIVES,
+            param1=float(status),
+        )
+        await asyncio.sleep(time)
+
+    async def begin_standby(self, data):
+        try:
+            await self._enable_drives(False)
+        except Exception as error:
+            self.log.warning(f"Ignoring the error when disabling the drives: {error}.")
 
     async def check_ccw_following_error(self):
         """Check the camera cable wrap following error.
@@ -214,15 +301,29 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         client : `lsst.ts.hexrotcomm.CommandTelemetryClient`
             TCP/IP client.
         """
-        await self.evt_configuration.set_write(
-            positionAngleUpperLimit=client.config.upper_pos_limit,
-            velocityLimit=client.config.velocity_limit,
-            accelerationLimit=client.config.accel_limit,
-            positionAngleLowerLimit=client.config.lower_pos_limit,
-            followingErrorThreshold=client.config.following_error_threshold,
-            trackingSuccessPositionThreshold=client.config.track_success_pos_threshold,
-            trackingLostTimeout=client.config.tracking_lost_timeout,
+        config = client.config
+
+        # This is to keep the backward compatibility of ts_xml v20.0.0 that
+        # does not have the 'drivesEnabled' defined in xml.
+        # TODO: Remove this after ts_xml v20.1.0.
+        configuration = dict(
+            positionAngleLowerLimit=config.lower_pos_limit,
+            positionAngleUpperLimit=config.upper_pos_limit,
+            velocityLimit=config.velocity_limit,
+            accelerationLimit=config.accel_limit,
+            emergencyAccelerationLimit=config.emergency_accel_limit,
+            emergencyJerkLimit=config.emergency_jerk_limit,
+            positionErrorThreshold=config.pos_error_threshold,
+            followingErrorThreshold=config.following_error_threshold,
+            trackingSuccessPositionThreshold=config.track_success_pos_threshold,
+            trackingLostTimeout=config.tracking_lost_timeout,
+            disableLimitMaxTime=config.disable_limit_max_time,
+            maxConfigurableVelocityLimit=config.max_velocity_limit,
         )
+        if hasattr(self.evt_configuration.DataType(), "drivesEnabled"):
+            configuration["drivesEnabled"] = config.drives_enabled
+
+        await self.evt_configuration.set_write(**configuration)
 
     async def connect_callback(self, client):
         await super().connect_callback(client)
@@ -251,16 +352,19 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     async def do_enable(self, data):
         self.assert_summary_state(salobj.State.DISABLED)
 
-        # Make sure we have camera cable wrap telemetry (from MTMount),
-        # and that it is recent enough to use for measuring following error.
-        try:
-            await self.mtmount_remote.tel_cameraCableWrap.next(
-                flush=False, timeout=MAX_CCW_TELEMETRY_AGE * 10
-            )
-        except asyncio.TimeoutError:
-            raise salobj.ExpectedError(
-                "Cannot enable the rotator until it receives camera cable wrap telemetry"
-            )
+        if not self._bypass_ccw:
+            # Make sure we have camera cable wrap telemetry (from MTMount),
+            # and that it is recent enough to use for measuring following
+            # error.
+            try:
+                await self.mtmount_remote.tel_cameraCableWrap.next(
+                    flush=False, timeout=MAX_CCW_TELEMETRY_AGE * 10
+                )
+            except asyncio.TimeoutError:
+                raise salobj.ExpectedError(
+                    "Cannot enable the rotator until it receives camera cable wrap telemetry"
+                )
+
         self._reported_ccw_following_error_issue = False
         await super().do_enable(data)
 
@@ -374,7 +478,10 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         self.log.debug("Sending the low-level controller to fault state")
         try:
             self._faulting = True
-            await self.run_command(code=enums.CommandCode.FAULT)
+            await self.run_command(
+                code=self.CommandCode.SET_STATE,
+                param1=hexrotcomm.SetStateParam.FAULT,
+            )
         finally:
             self._faulting = False
 
@@ -399,15 +506,25 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             self._tracking_started_telemetry_counter -= 1
         await self.evt_summaryState.set_write(summaryState=self.summary_state)
 
-        # Strangely telemetry.state, offline_substate and enabled_substate
-        # are all floats from the controller. But they should only have
-        # integer value, so I output them as integers.
-        await self.evt_controllerState.set_write(
+        # Strangely telemetry.state, fault_substate, and enabled_substate are
+        # floats from the controller. But they should only have integer value,
+        # so I output them as integers.
+
+        # This is to keep the backward compatibility of ts_xml v20.0.0 that
+        # does not have the 'faultSubstate' defined in xml.
+        # TODO: Remove this after ts_xml v20.1.0.
+        controller_state_data = dict(
             controllerState=int(client.telemetry.state),
-            offlineSubstate=int(client.telemetry.offline_substate),
             enabledSubstate=int(client.telemetry.enabled_substate),
             applicationStatus=client.telemetry.application_status,
         )
+
+        if hasattr(self.evt_controllerState.DataType(), "faultSubstate"):
+            controller_state_data["faultSubstate"] = int(
+                client.telemetry.fault_substate
+            )
+
+        await self.evt_controllerState.set_write(**controller_state_data)
 
         await self.tel_rotation.set_write(
             demandPosition=client.telemetry.demand_pos,
@@ -424,7 +541,11 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             odometer=client.telemetry.rotator_odometer,
             timestamp=tai_unix,
         )
-        await self.tel_electrical.set_write(
+
+        # This is to keep the backward compatibility of ts_xml v20.0.0 that
+        # does not have the 'copleyFaultStatus' defined in xml.
+        # TODO: Remove this after ts_xml v20.1.0.
+        electrical = dict(
             copleyStatusWordDrive=[
                 client.telemetry.status_word_drive0,
                 client.telemetry.status_word_drive0_axis_b,
@@ -434,6 +555,13 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 client.telemetry.latching_fault_status_register_axis_b,
             ],
         )
+        if hasattr(self.tel_electrical.DataType(), "copleyFaultStatus"):
+            electrical[
+                "copleyFaultStatus"
+            ] = client.telemetry.copley_fault_status_register
+
+        await self.tel_electrical.set_write(**electrical)
+
         await self.tel_motors.set_write(
             raw=[
                 client.telemetry.motor_encoder_ch_a,
@@ -476,17 +604,42 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         # Check following error if enabled and if not already checking
         # following error (don't let these tasks build up).
-        if self._check_ccw_following_error_task.done():
+        if self._check_ccw_following_error_task.done() and (not self._bypass_ccw):
             self._check_ccw_following_error_task = asyncio.create_task(
                 self.check_ccw_following_error()
             )
 
+    # TODO DM-39787: remove the initial_ctrl_state argument
+    # (which is ignored) once MTHexapod supports
+    # MTRotator's simplified states.
     def make_mock_controller(self, initial_ctrl_state):
         return mock_controller.MockMTRotatorController(
             log=self.log,
             port=0,
-            initial_state=initial_ctrl_state,
+            initial_state=ControllerState.STANDBY,
         )
+
+    @classmethod
+    def add_arguments(cls, parser: argparse.ArgumentParser) -> None:
+        super(RotatorCsc, cls).add_arguments(parser)
+
+        parser.add_argument(
+            "--bypass-ccw",
+            action="store_true",
+            default=False,
+            help="""
+                 Bypass the check of camera cable wrapper (CCW) or not. This is
+                 for test purpose only.
+                 """,
+        )
+
+    @classmethod
+    def add_kwargs_from_args(
+        cls, args: argparse.Namespace, kwargs: typing.Dict[str, typing.Any]
+    ) -> None:
+        super(RotatorCsc, cls).add_kwargs_from_args(args, kwargs)
+
+        kwargs["bypass_ccw"] = args.bypass_ccw
 
 
 def run_mtrotator():

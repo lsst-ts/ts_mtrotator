@@ -26,8 +26,8 @@ import unittest
 
 import pytest
 from lsst.ts import hexrotcomm, mtrotator, salobj, utils
-from lsst.ts.idl.enums.MTRotator import ControllerState, EnabledSubstate, ErrorCode
 from lsst.ts.mtrotator.rotator_csc import CLOCK_OFFSET_EVENT_INTERVAL
+from lsst.ts.xml.enums.MTRotator import ControllerState, EnabledSubstate, ErrorCode
 
 STD_TIMEOUT = 30  # timeout for command ack
 
@@ -234,15 +234,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 # Wait for and check the intermediate controller state,
                 # so unit test code only needs to check the final state
                 # (don't swallow the final state, for backwards compatibility).
-                for controller_state in (
-                    ControllerState.OFFLINE,
-                    ControllerState.STANDBY,
-                    ControllerState.DISABLED,
-                ):
-                    await self.assert_next_sample(
-                        topic=self.remote.evt_controllerState,
-                        controllerState=controller_state,
-                    )
+                await self.assert_next_sample(
+                    topic=self.remote.evt_controllerState,
+                    controllerState=ControllerState.STANDBY,
+                )
             try:
                 yield
             finally:
@@ -462,15 +457,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
 
             await self.remote.cmd_enable.set_start(timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.ENABLED)
-            for controller_state in (
-                ControllerState.OFFLINE,
-                ControllerState.STANDBY,
-                ControllerState.DISABLED,
-            ):
-                await self.assert_next_sample(
-                    topic=self.remote.evt_controllerState,
-                    controllerState=controller_state,
-                )
+            await self.assert_next_sample(
+                topic=self.remote.evt_controllerState,
+                controllerState=ControllerState.STANDBY,
+            )
             await self.assert_next_sample(
                 topic=self.remote.evt_controllerState,
                 controllerState=ControllerState.ENABLED,
@@ -490,6 +480,30 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.check_standard_state_transitions(
                 enabled_commands=enabled_commands
             )
+
+    async def test_begin_standby(self):
+        async with self.make_csc(initial_state=salobj.State.ENABLED):
+            await self.assert_next_summary_state(salobj.State.ENABLED)
+
+            # This is to keep the backward compatibility of ts_xml v20.0.0 that
+            # does not have the 'faultSubstate' defined in xml.
+            # TODO: Remove this after ts_xml v20.1.0.
+            if hasattr(self.remote.evt_controllerState.DataType(), "faultSubstate"):
+                await self.assert_next_sample(
+                    topic=self.remote.evt_controllerState,
+                    controllerState=ControllerState.ENABLED,
+                    faultSubstate=2,  # FaultSubstate.NO_ERROR
+                    enabledSubstate=EnabledSubstate.STATIONARY,
+                )
+
+            else:
+                await self.assert_next_sample(
+                    topic=self.remote.evt_controllerState,
+                    controllerState=ControllerState.ENABLED,
+                    enabledSubstate=EnabledSubstate.STATIONARY,
+                )
+
+            self.assertTrue(self.csc.client.config.drives_enabled)
 
     async def test_clock_offset(self):
         async with self.make_csc(initial_state=salobj.State.ENABLED):
@@ -513,13 +527,18 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             )
             initial_limit = data.accelerationLimit
             print("initial_limit=", initial_limit)
+
+            self.remote.evt_configuration.flush()
+
             new_limit = initial_limit - 0.1
             await self.remote.cmd_configureAcceleration.set_start(
                 alimit=new_limit, timeout=STD_TIMEOUT
             )
+
             data = await self.remote.evt_configuration.next(
                 flush=False, timeout=STD_TIMEOUT
             )
+
             self.assertAlmostEqual(data.accelerationLimit, new_limit)
 
             for bad_alimit in (-1, 0, mtrotator.MAX_ACCEL_LIMIT + 0.001):
@@ -536,10 +555,16 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 flush=False, timeout=STD_TIMEOUT
             )
             initial_limit = data.velocityLimit
+
+            self.remote.evt_configuration.flush()
+
             new_limit = initial_limit - 0.1
             await self.remote.cmd_configureVelocity.set_start(
                 vlimit=new_limit, timeout=STD_TIMEOUT
             )
+
+            await asyncio.sleep(1.0)
+
             data = await self.remote.evt_configuration.next(
                 flush=False, timeout=STD_TIMEOUT
             )
