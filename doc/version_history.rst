@@ -6,6 +6,11 @@
 Version History
 ###############
 
+v1.1.1
+------
+
+* Fix the enumeration of fault substate.
+
 v1.1.0
 ------
 

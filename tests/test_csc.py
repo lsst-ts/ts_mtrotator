@@ -492,7 +492,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 await self.assert_next_sample(
                     topic=self.remote.evt_controllerState,
                     controllerState=ControllerState.ENABLED,
-                    faultSubstate=2,  # FaultSubstate.NO_ERROR
+                    faultSubstate=0,  # FaultSubstate.NO_ERROR
                     enabledSubstate=EnabledSubstate.STATIONARY,
                 )
 
