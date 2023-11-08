@@ -10,6 +10,7 @@ v1.1.1
 ------
 
 * Fix the enumeration of fault substate.
+* Improve the unit test to be more robust.
 
 v1.1.0
 ------
