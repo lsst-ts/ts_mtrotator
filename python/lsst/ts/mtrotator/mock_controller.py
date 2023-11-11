@@ -25,11 +25,10 @@ import math
 import random
 
 from lsst.ts import hexrotcomm, simactuators, utils
-from lsst.ts.idl.enums.MTRotator import (
+from lsst.ts.xml.enums.MTRotator import (
     ApplicationStatus,
     ControllerState,
     EnabledSubstate,
-    OfflineSubstate,
 )
 
 from . import constants, enums, structs
@@ -53,13 +52,7 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         this is recommended for unit tests, to avoid collision
         with other tests.
         Do not specify 0 with host=None (see Raises section).
-    host : `str` or `None`, optional
-        IP address for this server. Typically "127.0.0.1" (the default)
-        for an IPV4 server and "::" for an IPV6 server.
-        If `None` then bind to all network interfaces and run both
-        IPV4 and IPV6 servers.
-        Do not specify `None` with port=0 (see Raises section).
-    initial_state : `lsst.ts.idl.enums.MTRotator.ControllerState` (optional)
+    initial_state : `ControllerState` (optional)
         Initial state of mock controller.
 
     Raises
@@ -103,8 +96,7 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         self,
         log,
         port=0,
-        host=hexrotcomm.LOCAL_HOST,
-        initial_state=ControllerState.OFFLINE,
+        initial_state=ControllerState.STANDBY,
     ):
         self.encoder_resolution = 200_000  # counts/deg; arbitrary
         # Amplitude of jitter in measured position (deg),
@@ -127,6 +119,12 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         config.following_error_threshold = 0.1  # deg
         config.track_success_pos_threshold = 0.01  # deg
         config.tracking_lost_timeout = 5  # sec
+        config.emergency_jerk_limit = 10  # m/sec^3
+        config.emergency_accel_limit = 1.5  # m/sec^2
+        config.disable_limit_max_time = 120  # sec
+        config.max_velocity_limit = 5  # deg/sec
+        config.drives_enabled = False
+
         telemetry = structs.Telemetry()
         telemetry.set_pos = math.nan
         self.tracking_timer_task = utils.make_done_future()
@@ -146,6 +144,13 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
 
         # Dict of command key: command
         extra_commands = {
+            # TODO DM-39787: move this command entry (and the do_fault method)
+            # to BaseMockController in ts_hexrotcomm,
+            # once MTHexapod supports MTRotator's simplified states.
+            (
+                enums.CommandCode.SET_STATE,
+                hexrotcomm.SetStateParam.FAULT,
+            ): self.do_fault,
             (
                 enums.CommandCode.SET_ENABLED_SUBSTATE,
                 enums.SetEnabledSubstateParam.MOVE_POINT_TO_POINT,
@@ -162,12 +167,12 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
                 enums.CommandCode.SET_ENABLED_SUBSTATE,
                 enums.SetEnabledSubstateParam.CONSTANT_VELOCITY,
             ): self.do_constant_velocity,
-            enums.CommandCode.FAULT: self.do_fault,
             enums.CommandCode.POSITION_SET: self.do_position_set,
             enums.CommandCode.SET_CONSTANT_VEL: self.do_set_constant_vel,
             enums.CommandCode.CONFIG_VEL: self.do_config_vel,
             enums.CommandCode.CONFIG_ACCEL: self.do_config_accel,
             enums.CommandCode.TRACK_VEL_CMD: self.do_track_vel_cmd,
+            enums.CommandCode.ENABLE_DRIVES: self.do_enable_drives,
         }
 
         super().__init__(
@@ -192,6 +197,35 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         self.rotator.stop()
         self.tracking_timer_task.cancel()
         await super().close()
+
+    # TODO DM-39787: move the following state transition methods
+    # to BaseMockController in ts_hexrotcomm (and delete the
+    # ones that raise NotImplementedError),
+    # once MTHexapod supports MTRotator's simplified states.
+    async def do_enter_control(self, command):
+        raise NotImplementedError()
+
+    async def do_start(self, command):
+        raise NotImplementedError()
+
+    async def do_disable(self, command):
+        raise NotImplementedError()
+
+    async def do_exit(self, command):
+        raise NotImplementedError()
+
+    async def do_enable(self, command):
+        self.assert_state(ControllerState.STANDBY)
+        self.set_state(ControllerState.ENABLED)
+
+    async def do_standby(self, command):
+        self.assert_state(ControllerState.ENABLED)
+        self.set_state(ControllerState.STANDBY)
+
+    async def do_fault(self, command):
+        self.set_state(ControllerState.FAULT)
+
+    # TODO DM-39787: end of state transition methods to move.
 
     async def do_config_vel(self, command):
         self.assert_stationary()
@@ -219,9 +253,6 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
 
     async def do_constant_velocity(self, command):
         raise RuntimeError("The mock controller does not support CONSTANT_VELOCITY")
-
-    async def do_fault(self, command):
-        self.set_state(ControllerState.FAULT)
 
     async def do_position_set(self, command):
         self.assert_stationary()
@@ -266,6 +297,10 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         self.tracking_timer_task.cancel()
         self.tracking_timer_task = asyncio.create_task(self.tracking_timer())
         self.track_vel_cmd_seen = True
+
+    async def do_enable_drives(self, command):
+        self.config.drives_enabled = bool(command.param1)
+        await self.write_config()
 
     def set_state(self, state):
         # Override to stop the rotator if not enabled
@@ -334,8 +369,6 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
                 )
             else:
                 self.telemetry.enabled_substate = EnabledSubstate.STATIONARY
-            if self.telemetry.state != ControllerState.OFFLINE:
-                self.telemetry.offline_substate = OfflineSubstate.AVAILABLE
             if (
                 self.telemetry.state == ControllerState.ENABLED
                 and self.telemetry.enabled_substate
@@ -368,5 +401,16 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
             self.telemetry.motor_encoder_ch_a = 0
             self.telemetry.motor_encoder_ch_b = 0
             self.telemetry.rotator_pos_deg = curr_pos
+
+            # Assign the FAULT sub-state
+
+            # This is to keep the backward compatibility of ts_xml v20.0.0 that
+            # does not have the 'faultSubstate' defined in xml.
+            # TODO: Remove this after ts_xml v20.1.0.
+            if self.telemetry.state == ControllerState.STANDBY:
+                self.telemetry.fault_substate = 2  # FaultSubstate.NO_ERROR
+            elif self.telemetry.state == ControllerState.FAULT:
+                self.telemetry.fault_substate = 1  # FaultSubstate.WAIT_CLEAR_ERROR
+
         except Exception:
             self.log.exception("update_telemetry failed; output incomplete telemetry")
