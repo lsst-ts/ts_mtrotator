@@ -408,9 +408,9 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
             # does not have the 'faultSubstate' defined in xml.
             # TODO: Remove this after ts_xml v20.1.0.
             if self.telemetry.state == ControllerState.STANDBY:
-                self.telemetry.fault_substate = 2  # FaultSubstate.NO_ERROR
+                self.telemetry.fault_substate = 0  # FaultSubstate.NO_ERROR
             elif self.telemetry.state == ControllerState.FAULT:
-                self.telemetry.fault_substate = 1  # FaultSubstate.WAIT_CLEAR_ERROR
+                self.telemetry.fault_substate = 2  # FaultSubstate.WAIT_CLEAR_ERROR
 
         except Exception:
             self.log.exception("update_telemetry failed; output incomplete telemetry")
