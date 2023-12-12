@@ -22,6 +22,7 @@
 import asyncio
 import contextlib
 import pathlib
+import typing
 import unittest
 
 import pytest
@@ -44,7 +45,7 @@ TEST_CONFIG_DIR = pathlib.Path(__file__).parent / "data" / "config"
 
 
 class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
 
         # The most recently seen rotation.odometer telemetry reading
@@ -64,14 +65,19 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         # (I don't know why) so use this technique instead.
         self.enable_mock_ccw_telemetry = False
 
-    def basic_make_csc(self, initial_state, simulation_mode=1, config_dir=None):
+    def basic_make_csc(
+        self,
+        initial_state: salobj.State,
+        simulation_mode: int = 1,
+        config_dir: str | pathlib.Path | None = None,
+    ) -> mtrotator.RotatorCsc:
         return mtrotator.RotatorCsc(
             initial_state=initial_state,
             simulation_mode=simulation_mode,
             config_dir=config_dir,
         )
 
-    async def check_telemetry(self, nskip=0):
+    async def check_telemetry(self, nskip: int = 0) -> None:
         """Check the the next rotation and motors telemetry messages.
 
         Parameters
@@ -159,14 +165,14 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
     @contextlib.asynccontextmanager
     async def make_csc(
         self,
-        initial_state=salobj.State.STANDBY,
-        config_dir=TEST_CONFIG_DIR,
-        simulation_mode=1,
-        log_level=None,
-        timeout=STD_TIMEOUT,
-        run_mock_ccw=True,  # Set False to test failure to enable
-        **kwargs,
-    ):
+        initial_state: salobj.State = salobj.State.STANDBY,
+        config_dir: pathlib.Path = TEST_CONFIG_DIR,
+        simulation_mode: int = 1,
+        log_level: int | None = None,
+        timeout: float = STD_TIMEOUT,
+        run_mock_ccw: bool = True,  # Set False to test failure to enable
+        **kwargs: dict[str, typing.Any],
+    ) -> mtrotator.RotatorCsc:
         """Override make_csc
 
         This exists primarily because we need to start a mock
@@ -179,7 +185,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             Name of SAL component.
         initial_state : `lsst.ts.salobj.State` or `int`, optional
             The initial state of the CSC. Defaults to STANDBY.
-        config_dir : `str`, optional
+        config_dir : `pathlib.Path`, optional
             Directory of configuration files, or `None` (the default)
             for the standard configuration directory (obtained from
             `ConfigureCsc._get_default_config_dir`).
@@ -242,7 +248,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 self.enable_mock_ccw_telemetry = False
                 await asyncio.wait_for(self.mock_ccw_task, timeout=STD_TIMEOUT)
 
-    async def mock_ccw_loop(self):
+    async def mock_ccw_loop(self) -> None:
         """Mock the MTMount camera cable wrap system.
 
         Output cameraCableWrap telemetry that simulates
@@ -281,7 +287,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         except Exception as e:
             print(f"mock_ccw_loop failed: {e}")
 
-    async def test_bin_script(self):
+    async def test_bin_script(self) -> None:
         """Test running from the command line script."""
         await self.check_bin_script(
             name="MTRotator",
@@ -290,7 +296,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             cmdline_args=["--simulate"],
         )
 
-    async def test_enable_no_ccw_telemetry(self):
+    async def test_enable_no_ccw_telemetry(self) -> None:
         """Test that it is not possible to enable the CSC if it
         is not receiving MTMount cameraCableWrap telemetry.
         """
@@ -301,7 +307,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 await self.remote.cmd_enable.start(timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.DISABLED)
 
-    async def test_missing_ccw_telemetry(self):
+    async def test_missing_ccw_telemetry(self) -> None:
         """Test that the CSC will fault if camera cable wrap telemetry
         disappears.
 
@@ -340,7 +346,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 data.velocityError, 0, delta=STD_FOLLOWING_DELTA_VELOCITY
             )
 
-    async def test_excessive_ccw_following_error(self):
+    async def test_excessive_ccw_following_error(self) -> None:
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             await self.assert_next_summary_state(salobj.State.ENABLED)
             await self.assert_next_sample(topic=self.remote.evt_errorCode, errorCode=0)
@@ -387,7 +393,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 errorCode=ErrorCode.CONTROLLER_FAULT,
             )
 
-    async def test_transient_excessive_ccw_following_error(self):
+    async def test_transient_excessive_ccw_following_error(self) -> None:
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             await self.assert_next_summary_state(salobj.State.ENABLED)
             await self.assert_next_sample(topic=self.remote.evt_errorCode, errorCode=0)
@@ -413,7 +419,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 errorCode=ErrorCode.CONTROLLER_FAULT,
             )
 
-    async def test_fault(self):
+    async def test_fault(self) -> None:
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             await self.assert_next_sample(topic=self.remote.evt_errorCode, errorCode=0)
             await self.assert_next_sample(
@@ -465,7 +471,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 enabledSubstate=EnabledSubstate.STATIONARY,
             )
 
-    async def test_standard_state_transitions(self):
+    async def test_standard_state_transitions(self) -> None:
         enabled_commands = (
             "configureVelocity",
             "configureAcceleration",
@@ -479,7 +485,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 enabled_commands=enabled_commands
             )
 
-    async def test_begin_standby(self):
+    async def test_begin_standby(self) -> None:
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             await self.assert_next_summary_state(salobj.State.ENABLED)
 
@@ -503,7 +509,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
 
             self.assertTrue(self.csc.client.config.drives_enabled)
 
-    async def test_clock_offset(self):
+    async def test_clock_offset(self) -> None:
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             data = await self.remote.evt_clockOffset.next(
                 flush=False, timeout=STD_TIMEOUT
@@ -517,7 +523,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             assert data.offset == pytest.approx(0, abs=0.2)
             assert interval > CLOCK_OFFSET_EVENT_INTERVAL - 0.2
 
-    async def test_configure_acceleration(self):
+    async def test_configure_acceleration(self) -> None:
         """Test the configureAcceleration command."""
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             data = await self.remote.evt_configuration.next(
@@ -546,7 +552,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                             alimit=bad_alimit, timeout=STD_TIMEOUT
                         )
 
-    async def test_configure_velocity(self):
+    async def test_configure_velocity(self) -> None:
         """Test the configureVelocity command."""
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             data = await self.remote.evt_configuration.next(
@@ -575,7 +581,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                             vlimit=bad_vlimit, timeout=STD_TIMEOUT
                         )
 
-    async def test_move(self):
+    async def test_move(self) -> None:
         """Test the move command for point to point motion."""
         destination = 2  # a small move so the test runs quickly
         # Estimated time to move; a crude estimate used for timeouts
@@ -630,7 +636,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # so give some slop (though this is more than we really need)
             self.assertAlmostEqual(self.csc.mock_ctrl.odometer, destination, delta=0.01)
 
-    async def test_stop_move(self):
+    async def test_stop_move(self) -> None:
         """Test stopping a point to point move."""
         destination = 20  # a large move so we have plenty of time to stop
         # Estimated time to move; a crude estimate used for timeouts
@@ -670,7 +676,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             self.assertGreater(data.actualPosition, 0)
             self.assertLess(data.actualPosition, destination)
 
-    async def test_track_good(self):
+    async def test_track_good(self) -> None:
         """Test the trackStart and track commands."""
         pos0 = 2  # a small move so the slew ends quickly
         vel = 0.01
@@ -741,7 +747,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             )
             self.assertFalse(data.inPosition)
 
-    async def test_track_bad_values(self):
+    async def test_track_bad_values(self) -> None:
         """Test the track command with bad values.
 
         This should go into FAULT.
@@ -794,7 +800,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                     )
                     await asyncio.sleep(0.01)
 
-    async def test_track_start_no_track(self):
+    async def test_track_start_no_track(self) -> None:
         """Test the trackStart command with no track command.
 
         This should go into FAULT.
@@ -837,7 +843,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 controllerState=ControllerState.FAULT,
             )
 
-    async def test_track_start_late_track(self):
+    async def test_track_start_late_track(self) -> None:
         """Test tracking with a late track command.
 
         Also test that we can send the track command immediately after
@@ -904,12 +910,12 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
 
     async def assert_next_ccw_following_error(
         self,
-        position_error=None,
-        velocity_error=0,
-        delta_position=STD_FOLLOWING_DELTA_POSITION,
-        delta_velocity=STD_FOLLOWING_DELTA_VELOCITY,
-        timeout=STD_TIMEOUT,
-    ):
+        position_error: float | None = None,
+        velocity_error: float = 0.0,
+        delta_position: float = STD_FOLLOWING_DELTA_POSITION,
+        delta_velocity: float = STD_FOLLOWING_DELTA_VELOCITY,
+        timeout: float = STD_TIMEOUT,
+    ) -> None:
         """Assert that ccwFollowingError matches the specifications.
 
         Reads new samples until the position error matches,
@@ -946,8 +952,12 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         )
 
     async def _impl_assert_next_ccw_following_error(
-        self, position_error, velocity_error, delta_position, delta_velocity
-    ):
+        self,
+        position_error: float,
+        velocity_error: float,
+        delta_position: float,
+        delta_velocity: float,
+    ) -> None:
         """Implement assert_next_ccw_following_error without a timeout
         and without argument defaults.
         """
@@ -960,7 +970,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             self.assertAlmostEqual(data.timestamp, utils.current_tai(), delta=0.2)
             if abs(data.positionError - position_error) < delta_position:
                 break
-        self.assertAlmostEqual(data.velocityError, velocity_error, delta_velocity)
+        self.assertAlmostEqual(data.velocityError, velocity_error, delta=delta_velocity)
 
 
 if __name__ == "__main__":

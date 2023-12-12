@@ -23,7 +23,9 @@ __all__ = ["RotatorCsc", "run_mtrotator"]
 
 import argparse
 import asyncio
+import types
 import typing
+from pathlib import Path
 
 from lsst.ts import hexrotcomm, salobj, utils
 from lsst.ts.xml.enums.MTRotator import (
@@ -88,14 +90,14 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
     def __init__(
         self,
-        config_dir=None,
-        initial_state=salobj.State.STANDBY,
-        override="",
-        simulation_mode=0,
-        bypass_ccw=False,
-    ):
-        self.client = None
-        self.mock_ctrl = None
+        config_dir: str | Path | None = None,
+        initial_state: salobj.State = salobj.State.STANDBY,
+        override: str = "",
+        simulation_mode: int = 0,
+        bypass_ccw: bool = False,
+    ) -> None:
+        self.client: hexrotcomm.CommandTelemetryClient | None = None
+        self.mock_ctrl: mock_controller.MockMTRotatorController | None = None
 
         # Set this to 2 when trackStart is called, then decrement
         # when telemetry is received. If > 0 or enabled_substate is
@@ -134,14 +136,14 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         )
         self.mtmount_remote = salobj.Remote(domain=self.domain, name="MTMount")
 
-    async def start(self):
+    async def start(self) -> None:
         await super().start()
         await self.mtmount_remote.start_task
         await self.evt_inPosition.set_write(inPosition=False, force_output=True)
 
     # TODO DM-39787: move this method to BaseCsc in ts_hexrotcomm
     # once MTHexapod supports MTRotator's simplified states.
-    async def enable_controller(self):
+    async def enable_controller(self) -> None:
         """Enable the low-level controller.
 
         The version in hexrotcomm handles the original, complicated set of
@@ -155,6 +157,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             (which is unlikely).
         """
         self.assert_commandable()
+
+        # Workaround the mypy check
+        assert self.client is not None
 
         self.log.info(
             f"Enable low-level controller; initial state={self.client.telemetry.state}"
@@ -191,7 +196,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         await self.wait_controller_state(ControllerState.ENABLED)
 
-    async def _enable_drives(self, status, time=1.0):
+    async def _enable_drives(self, status: bool, time: float = 1.0) -> None:
         """Enable the drives.
 
         Parameters
@@ -208,13 +213,13 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         )
         await asyncio.sleep(time)
 
-    async def begin_standby(self, data):
+    async def begin_standby(self, data: salobj.BaseMsgType) -> None:
         try:
             await self._enable_drives(False)
         except Exception as error:
             self.log.warning(f"Ignoring the error when disabling the drives: {error}.")
 
-    async def check_ccw_following_error(self):
+    async def check_ccw_following_error(self) -> None:
         """Check the camera cable wrap following error.
 
         Publish the value, if the camera cable wrap angle can be read.
@@ -286,14 +291,14 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         except Exception:
             self.log.exception("check_ccw_following_error failed")
 
-    async def close_tasks(self):
+    async def close_tasks(self) -> None:
         self.next_clock_offset_task.cancel()
         await super().close_tasks()
 
-    async def configure(self, config):
+    async def configure(self, config: types.SimpleNamespace) -> None:
         self.config = config
 
-    async def config_callback(self, client):
+    async def config_callback(self, client: hexrotcomm.CommandTelemetryClient) -> None:
         """Called when the TCP/IP controller outputs configuration.
 
         Parameters
@@ -325,13 +330,13 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         await self.evt_configuration.set_write(**configuration)
 
-    async def connect_callback(self, client):
+    async def connect_callback(self, client: hexrotcomm.CommandTelemetryClient) -> None:
         await super().connect_callback(client)
         # Always reset this counter; if newly connected then we'll start
         # accumulating the count and otherwise it makes no difference.
         self._num_ccw_following_errors = 0
 
-    async def do_configureAcceleration(self, data):
+    async def do_configureAcceleration(self, data: salobj.BaseMsgType) -> None:
         """Specify the acceleration limit."""
         self.assert_enabled_substate(EnabledSubstate.STATIONARY)
         if not 0 < data.alimit <= constants.MAX_ACCEL_LIMIT:
@@ -340,7 +345,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             )
         await self.run_command(code=enums.CommandCode.CONFIG_ACCEL, param1=data.alimit)
 
-    async def do_configureVelocity(self, data):
+    async def do_configureVelocity(self, data: salobj.BaseMsgType) -> None:
         """Specify the velocity limit."""
         self.assert_enabled_substate(EnabledSubstate.STATIONARY)
         if not 0 < data.vlimit <= constants.MAX_VEL_LIMIT:
@@ -349,7 +354,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             )
         await self.run_command(code=enums.CommandCode.CONFIG_VEL, param1=data.vlimit)
 
-    async def do_enable(self, data):
+    async def do_enable(self, data: salobj.BaseMsgType) -> None:
         self.assert_summary_state(salobj.State.DISABLED)
 
         if not self._bypass_ccw:
@@ -368,7 +373,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         self._reported_ccw_following_error_issue = False
         await super().do_enable(data)
 
-    async def do_fault(self, data):
+    async def do_fault(self, data: salobj.BaseMsgType) -> None:
         if self.summary_state != salobj.State.ENABLED:
             raise salobj.ExpectedError("Not enabled")
         self.log.warning(
@@ -376,11 +381,15 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         )
         await self.command_llv_fault()
 
-    async def do_move(self, data):
+    async def do_move(self, data: salobj.BaseMsgType) -> None:
         """Go to the position specified by the most recent ``positionSet``
         command.
         """
         self.assert_enabled_substate(EnabledSubstate.STATIONARY)
+
+        # Workaround the mypy check
+        assert self.client is not None
+
         if (
             not self.client.config.lower_pos_limit
             <= data.position
@@ -406,7 +415,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             force_output=True,
         )
 
-    async def do_stop(self, data):
+    async def do_stop(self, data: salobj.BaseMsgType) -> None:
         """Halt tracking or any other motion."""
         if self.summary_state != salobj.State.ENABLED:
             raise salobj.ExpectedError("Not enabled")
@@ -415,10 +424,14 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             param1=enums.SetEnabledSubstateParam.STOP,
         )
 
-    async def do_track(self, data):
+    async def do_track(self, data: salobj.BaseMsgType) -> None:
         """Specify a position, velocity, TAI time tracking update."""
         if self.summary_state != salobj.State.ENABLED:
             raise salobj.ExpectedError("Not enabled")
+
+        # Workaround the mypy check
+        assert self.client is not None
+
         if (
             self.client.telemetry.enabled_substate
             != EnabledSubstate.SLEWING_OR_TRACKING
@@ -456,7 +469,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             position=data.angle, velocity=data.velocity, tai=data.tai, force_output=True
         )
 
-    async def do_trackStart(self, data):
+    async def do_trackStart(self, data: salobj.BaseMsgType) -> None:
         """Start tracking.
 
         Once this is run you must issue ``track`` commands at 10-20Hz
@@ -469,7 +482,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         )
         self._tracking_started_telemetry_counter = 2
 
-    async def command_llv_fault(self):
+    async def command_llv_fault(self) -> None:
         """Command the low-level controller to go to fault state."""
         if self._faulting:
             self.log.debug("command_llv_fault called, but already faulting")
@@ -485,7 +498,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         finally:
             self._faulting = False
 
-    async def telemetry_callback(self, client):
+    async def telemetry_callback(
+        self, client: hexrotcomm.CommandTelemetryClient
+    ) -> None:
         """Called when the TCP/IP controller outputs telemetry.
 
         Parameters
@@ -612,7 +627,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     # TODO DM-39787: remove the initial_ctrl_state argument
     # (which is ignored) once MTHexapod supports
     # MTRotator's simplified states.
-    def make_mock_controller(self, initial_ctrl_state):
+    def make_mock_controller(
+        self, initial_ctrl_state: ControllerState
+    ) -> mock_controller.MockMTRotatorController:
         return mock_controller.MockMTRotatorController(
             log=self.log,
             port=0,
@@ -642,6 +659,6 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         kwargs["bypass_ccw"] = args.bypass_ccw
 
 
-def run_mtrotator():
+def run_mtrotator() -> None:
     """Run the MTRotator CSC."""
     asyncio.run(RotatorCsc.amain(index=None))

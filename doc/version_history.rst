@@ -6,6 +6,11 @@
 Version History
 ###############
 
+v1.1.2
+------
+
+* Support the **mypy**.
+
 v1.1.1
 ------
 
