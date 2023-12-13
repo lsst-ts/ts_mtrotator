@@ -28,7 +28,7 @@ from lsst.ts import mtrotator, salobj
 class ValidationTestCase(unittest.TestCase):
     """Test validation of the config schema."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.schema = mtrotator.CONFIG_SCHEMA
         self.validator = salobj.StandardValidator(schema=self.schema)
         self.default = dict(
@@ -39,7 +39,7 @@ class ValidationTestCase(unittest.TestCase):
             connection_timeout=10,
         )
 
-    def test_basics(self):
+    def test_basics(self) -> None:
         config = dict(
             max_ccw_following_error=1.5,
             num_ccw_following_errors=1,
@@ -49,7 +49,7 @@ class ValidationTestCase(unittest.TestCase):
         )
         self.validator.validate(config)
 
-    def test_invalid_configs(self):
+    def test_invalid_configs(self) -> None:
         for name, badval in (
             ("max_ccw_following_error", "oops"),  # Wrong type
             ("max_ccw_following_error", 0),  # Not positive

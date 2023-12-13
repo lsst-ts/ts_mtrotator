@@ -43,8 +43,8 @@ class RotatorCommander(salobj.CscCommander):
         Enable the CSC when first connecting?
     """
 
-    def __init__(self, enable):
-        self.tracking_task = asyncio.Future()
+    def __init__(self, enable: bool) -> None:
+        self.tracking_task: asyncio.Future = asyncio.Future()
         super().__init__(
             name="MTRotator",
             index=0,
@@ -59,23 +59,29 @@ class RotatorCommander(salobj.CscCommander):
         for command_to_ignore in ("abort", "setValue"):
             self.command_dict.pop(command_to_ignore, None)
 
-    async def close(self):
+    async def close(self) -> None:
         self.tracking_task.cancel()
         await super().close()
 
-    async def do_ramp(self, args):
+    async def do_ramp(self, args: list[str]) -> None:
         """Track from start_position to end_position at the specified speed."""
         self.tracking_task.cancel()
         kwargs = self.check_arguments(args, "start_position", "end_position", "speed")
         self.tracking_task = asyncio.ensure_future(self._ramp(**kwargs))
 
-    async def do_cosine(self, args):
+    async def do_cosine(self, args: list[str]) -> None:
         """Track along a cosine wave (one full cycle)."""
         self.tracking_task.cancel()
         kwargs = self.check_arguments(args, "center_position", "amplitude", "max_speed")
         self.tracking_task = asyncio.ensure_future(self._cosine(**kwargs))
 
-    def _special_telemetry_callback(self, data, name, omit_fields, digits=2):
+    def _special_telemetry_callback(
+        self,
+        data: salobj.BaseMsgType,
+        name: str,
+        omit_fields: list[str],
+        digits: int = 2,
+    ) -> None:
         """Callback for telemetry omitting one specified field
         from the comparison, but printing it.
 
@@ -101,7 +107,7 @@ class RotatorCommander(salobj.CscCommander):
         formatted_data = self.format_dict(public_data)
         self.output(f"{data.private_sndStamp:0.3f}: {name}: {formatted_data}")
 
-    async def tel_motors_callback(self, data):
+    async def tel_motors_callback(self, data: salobj.BaseMsgType) -> None:
         """Don't print if only the raw or busVoltage fields have changed.
 
         Parameters
@@ -115,12 +121,14 @@ class RotatorCommander(salobj.CscCommander):
             data=data, name="motors", omit_fields=["busVoltage", "current"], digits=-5
         )
 
-    async def tel_rotation_callback(self, data):
+    async def tel_rotation_callback(self, data: salobj.BaseMsgType) -> None:
         self._special_telemetry_callback(
             data=data, name="rotation", omit_fields=["odometer", "timestamp"], digits=2
         )
 
-    async def _ramp(self, start_position, end_position, speed):
+    async def _ramp(
+        self, start_position: float, end_position: float, speed: float
+    ) -> None:
         """Track a linear ramp.
 
         Parameters
@@ -164,7 +172,9 @@ class RotatorCommander(salobj.CscCommander):
             await self.remote.cmd_stop.start(timeout=STD_TIMEOUT)
             print("Ramp finished")
 
-    async def _cosine(self, center_position, amplitude, max_speed):
+    async def _cosine(
+        self, center_position: float, amplitude: float, max_speed: float
+    ) -> None:
         """Track one sine wave of specified amplitude and period.
 
         The range of motion is period - amplitude to period + amplitude,
@@ -220,6 +230,6 @@ class RotatorCommander(salobj.CscCommander):
             await self.remote.cmd_stop.start(timeout=STD_TIMEOUT)
 
 
-def command_mtrotator():
+def command_mtrotator() -> None:
     """Run the MTRotator commander."""
     asyncio.run(RotatorCommander.amain(index=None))
