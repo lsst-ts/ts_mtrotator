@@ -28,6 +28,7 @@ import typing
 from pathlib import Path
 
 from lsst.ts import hexrotcomm, salobj, utils
+from lsst.ts.xml.component_info import ComponentInfo
 from lsst.ts.xml.enums.MTRotator import (
     ApplicationStatus,
     ControllerState,
@@ -121,6 +122,20 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # telemetry_callback should output the clockOffset event
         # for the next telemetry received when this timer expires
         self.next_clock_offset_task = utils.make_done_future()
+
+        # This is to keep the backward compatibility of ts_xml v20.1.0 that
+        # does not have the following commands defined in xml.
+        # TODO: Remove this after ts_xml v21.0.0.
+        component_info = ComponentInfo("MTRotator", "sal")
+        if "cmd_configureEmergencyAcceleration" in component_info.topics:
+            setattr(
+                self,
+                "do_configureEmergencyAcceleration",
+                self._do_configureEmergencyAcceleration,
+            )
+
+        if "cmd_configureEmergencyJerk" in component_info.topics:
+            setattr(self, "do_configureEmergencyJerk", self._do_configureEmergencyJerk)
 
         super().__init__(
             name="MTRotator",
@@ -353,6 +368,56 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 f"vlimit={data.vlimit} must be > 0 and <= {constants.MAX_VEL_LIMIT}"
             )
         await self.run_command(code=enums.CommandCode.CONFIG_VEL, param1=data.vlimit)
+
+    async def _do_configureEmergencyAcceleration(
+        self, data: salobj.BaseMsgType
+    ) -> None:
+        """Configure the emergency acceleration limit.
+
+        Parameters
+        ----------
+        data : `salobj.BaseMsgType`
+            Data of the SAL message.
+
+        Raises
+        ------
+        `salobj.ExpectedError`
+            When the value is 0 or negative.
+        """
+
+        self.assert_enabled_substate(EnabledSubstate.STATIONARY)
+
+        alimit = data.alimit
+        if alimit <= 0.0:
+            raise salobj.ExpectedError(f"Emergency alimit={alimit} must be >= 0")
+
+        await self.run_command(
+            code=enums.CommandCode.CONFIG_ACCEL_EMERGENCY, param1=alimit
+        )
+
+    async def _do_configureEmergencyJerk(self, data: salobj.BaseMsgType) -> None:
+        """Configure the emergency jerk limit.
+
+        Parameters
+        ----------
+        data : `salobj.BaseMsgType`
+            Data of the SAL message.
+
+        Raises
+        ------
+        `salobj.ExpectedError`
+            When the value is 0 or negative.
+        """
+
+        self.assert_enabled_substate(EnabledSubstate.STATIONARY)
+
+        jlimit = data.jlimit
+        if jlimit <= 0.0:
+            raise salobj.ExpectedError(f"Emergency jlimit={jlimit} must be >= 0")
+
+        await self.run_command(
+            code=enums.CommandCode.CONFIG_JERK_EMERGENCY, param1=jlimit
+        )
 
     async def do_enable(self, data: salobj.BaseMsgType) -> None:
         self.assert_summary_state(salobj.State.DISABLED)
