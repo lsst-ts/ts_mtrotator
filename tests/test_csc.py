@@ -491,7 +491,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
 
             # This is to keep the backward compatibility of ts_xml v20.0.0 that
             # does not have the 'faultSubstate' defined in xml.
-            # TODO: Remove this after ts_xml v20.1.0.
+            # TODO: Remove this after ts_xml v20.1.0. (DM-42502)
             if hasattr(self.remote.evt_controllerState.DataType(), "faultSubstate"):
                 await self.assert_next_sample(
                     topic=self.remote.evt_controllerState,
@@ -580,6 +580,82 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                         await self.remote.cmd_configureVelocity.set_start(
                             vlimit=bad_vlimit, timeout=STD_TIMEOUT
                         )
+
+    async def test_configure_emergency_acceleration(self) -> None:
+        """Test the configureEmergencyAcceleration command."""
+        async with self.make_csc(initial_state=salobj.State.ENABLED):
+            # This is to keep the backward compatibility of ts_xml v20.1.0 that
+            # does not have the "configureEmergencyAcceleration" command
+            # defined in xml.
+            # TODO: Remove this after ts_xml v20.2.0. (DM-42502)
+            if hasattr(self.remote, "cmd_configureEmergencyAcceleration"):
+                # Test the good value
+                data = await self.remote.evt_configuration.next(
+                    flush=False, timeout=STD_TIMEOUT
+                )
+                initial_limit = data.emergencyAccelerationLimit
+
+                self.remote.evt_configuration.flush()
+
+                new_limit = initial_limit + 0.1
+                await self.remote.cmd_configureEmergencyAcceleration.set_start(
+                    alimit=new_limit, timeout=STD_TIMEOUT
+                )
+
+                await asyncio.sleep(1.0)
+
+                data = await self.remote.evt_configuration.next(
+                    flush=False, timeout=STD_TIMEOUT
+                )
+                self.assertAlmostEqual(data.emergencyAccelerationLimit, new_limit)
+
+                # Test the bad value
+                for bad_limit in (0, -1):
+                    with self.subTest(bad_limit=bad_limit):
+                        with salobj.assertRaisesAckError(
+                            ack=salobj.SalRetCode.CMD_FAILED
+                        ):
+                            await self.remote.cmd_configureEmergencyAcceleration.set_start(
+                                alimit=bad_limit, timeout=STD_TIMEOUT
+                            )
+
+    async def test_configure_configure_emergency_jerk(self) -> None:
+        """Test the configureEmergencyJerk command."""
+        async with self.make_csc(initial_state=salobj.State.ENABLED):
+            # This is to keep the backward compatibility of ts_xml v20.1.0 that
+            # does not have the "configureEmergencyJerk" command
+            # defined in xml.
+            # TODO: Remove this after ts_xml v20.2.0. (DM-42502)
+            if hasattr(self.remote, "cmd_configureEmergencyJerk"):
+                # Test the good value
+                data = await self.remote.evt_configuration.next(
+                    flush=False, timeout=STD_TIMEOUT
+                )
+                initial_limit = data.emergencyJerkLimit
+
+                self.remote.evt_configuration.flush()
+
+                new_limit = initial_limit + 0.1
+                await self.remote.cmd_configureEmergencyJerk.set_start(
+                    jlimit=new_limit, timeout=STD_TIMEOUT
+                )
+
+                await asyncio.sleep(1.0)
+
+                data = await self.remote.evt_configuration.next(
+                    flush=False, timeout=STD_TIMEOUT
+                )
+                self.assertAlmostEqual(data.emergencyJerkLimit, new_limit)
+
+                # Test the bad value
+                for bad_limit in (0, -1):
+                    with self.subTest(bad_limit=bad_limit):
+                        with salobj.assertRaisesAckError(
+                            ack=salobj.SalRetCode.CMD_FAILED
+                        ):
+                            await self.remote.cmd_configureEmergencyJerk.set_start(
+                                jlimit=bad_limit, timeout=STD_TIMEOUT
+                            )
 
     async def test_move(self) -> None:
         """Test the move command for point to point motion."""
