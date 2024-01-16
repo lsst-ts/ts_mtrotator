@@ -125,7 +125,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         # This is to keep the backward compatibility of ts_xml v20.1.0 that
         # does not have the following commands defined in xml.
-        # TODO: Remove this after ts_xml v21.0.0.
+        # TODO: Remove this after ts_xml v20.2.0. (DM-42502)
         component_info = ComponentInfo("MTRotator", "sal")
         if "cmd_configureEmergencyAcceleration" in component_info.topics:
             setattr(
@@ -325,7 +325,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         # This is to keep the backward compatibility of ts_xml v20.0.0 that
         # does not have the 'drivesEnabled' defined in xml.
-        # TODO: Remove this after ts_xml v20.1.0.
+        # TODO: Remove this after ts_xml v20.1.0. (DM-42502)
         configuration = dict(
             positionAngleLowerLimit=config.lower_pos_limit,
             positionAngleUpperLimit=config.upper_pos_limit,
@@ -389,7 +389,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         alimit = data.alimit
         if alimit <= 0.0:
-            raise salobj.ExpectedError(f"Emergency alimit={alimit} must be >= 0")
+            raise salobj.ExpectedError(f"Emergency {alimit=} must be >= 0")
 
         await self.run_command(
             code=enums.CommandCode.CONFIG_ACCEL_EMERGENCY, param1=alimit
@@ -413,7 +413,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         jlimit = data.jlimit
         if jlimit <= 0.0:
-            raise salobj.ExpectedError(f"Emergency jlimit={jlimit} must be >= 0")
+            raise salobj.ExpectedError(f"Emergency {jlimit=} must be >= 0")
 
         await self.run_command(
             code=enums.CommandCode.CONFIG_JERK_EMERGENCY, param1=jlimit
@@ -592,7 +592,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         # This is to keep the backward compatibility of ts_xml v20.0.0 that
         # does not have the 'faultSubstate' defined in xml.
-        # TODO: Remove this after ts_xml v20.1.0.
+        # TODO: Remove this after ts_xml v20.1.0. (DM-42502)
         controller_state_data = dict(
             controllerState=int(client.telemetry.state),
             enabledSubstate=int(client.telemetry.enabled_substate),
@@ -624,7 +624,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         # This is to keep the backward compatibility of ts_xml v20.0.0 that
         # does not have the 'copleyFaultStatus' defined in xml.
-        # TODO: Remove this after ts_xml v20.1.0.
+        # TODO: Remove this after ts_xml v20.1.0. (DM-42502)
         electrical = dict(
             copleyStatusWordDrive=[
                 client.telemetry.status_word_drive0,

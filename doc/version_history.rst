@@ -9,12 +9,12 @@ Version History
 v1.1.3
 ------
 
-* Add the new commands to set the emergency acceleration and jerk in the run time.
+* Add the new commands to set the emergency acceleration and jerk at runtime.
 
 Requires:
 
 * ts_rotator_controller 1.6.5
-* ts_xml 21.0.0
+* ts_xml 20.2.0
 
 v1.1.2
 ------

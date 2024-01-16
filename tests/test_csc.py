@@ -491,7 +491,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
 
             # This is to keep the backward compatibility of ts_xml v20.0.0 that
             # does not have the 'faultSubstate' defined in xml.
-            # TODO: Remove this after ts_xml v20.1.0.
+            # TODO: Remove this after ts_xml v20.1.0. (DM-42502)
             if hasattr(self.remote.evt_controllerState.DataType(), "faultSubstate"):
                 await self.assert_next_sample(
                     topic=self.remote.evt_controllerState,
@@ -587,7 +587,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # This is to keep the backward compatibility of ts_xml v20.1.0 that
             # does not have the "configureEmergencyAcceleration" command
             # defined in xml.
-            # TODO: Remove this after ts_xml v21.0.0.
+            # TODO: Remove this after ts_xml v20.2.0. (DM-42502)
             if hasattr(self.remote, "cmd_configureEmergencyAcceleration"):
                 # Test the good value
                 data = await self.remote.evt_configuration.next(
@@ -625,7 +625,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # This is to keep the backward compatibility of ts_xml v20.1.0 that
             # does not have the "configureEmergencyJerk" command
             # defined in xml.
-            # TODO: Remove this after ts_xml v21.0.0.
+            # TODO: Remove this after ts_xml v20.2.0. (DM-42502)
             if hasattr(self.remote, "cmd_configureEmergencyJerk"):
                 # Test the good value
                 data = await self.remote.evt_configuration.next(
