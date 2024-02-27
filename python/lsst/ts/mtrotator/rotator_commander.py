@@ -50,12 +50,12 @@ class RotatorCommander(salobj.CscCommander):
             index=0,
             enable=enable,
         )
-        self.help_dict[
-            "ramp"
-        ] = "start_position end_position speed  # track a path of constant"
-        self.help_dict[
-            "cosine"
-        ] = "center_position, amplitude, max_speed  # track one cycle of a cosine wave"
+        self.help_dict["ramp"] = (
+            "start_position end_position speed  # track a path of constant"
+        )
+        self.help_dict["cosine"] = (
+            "center_position, amplitude, max_speed  # track one cycle of a cosine wave"
+        )
         for command_to_ignore in ("abort", "setValue"):
             self.command_dict.pop(command_to_ignore, None)
 

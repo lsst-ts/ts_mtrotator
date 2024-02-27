@@ -6,6 +6,17 @@
 Version History
 ###############
 
+v1.1.4
+------
+
+* Update unit tests to use assert_next_sample instead of getting topics directly. This makes them more robust when running with the kafka version of salobj.
+
+* In ``rotator_csc``, refactor ``check_ccw_following_error`` to use ``next`` to get a sample of ccw position instead of ``get``.
+
+  This should add small overhead but should give more reliable telemetry.
+
+* Update black formatting.
+
 v1.1.3
 ------
 

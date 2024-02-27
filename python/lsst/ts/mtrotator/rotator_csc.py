@@ -245,12 +245,12 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         from the low-level controller.
         """
         try:
-            rot_data = self.tel_rotation.data
-            rot_tai = rot_data.timestamp
-
             # Get camera cable wrap telemetry and check its age.
-            ccw_data = self.mtmount_remote.tel_cameraCableWrap.get()
-            if ccw_data is None:
+            try:
+                ccw_data = await self.mtmount_remote.tel_cameraCableWrap.next(
+                    flush=True, timeout=MAX_CCW_TELEMETRY_AGE
+                )
+            except asyncio.TimeoutError:
                 err_msg = "Cannot read cameraCableWrap telemetry"
                 if self.summary_state == salobj.State.ENABLED:
                     self.log.error(err_msg)
@@ -259,6 +259,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                     self.log.warning(err_msg)
                     self._reported_ccw_following_error_issue = True
                 return
+
+            rot_data = self.tel_rotation.data
+            rot_tai = rot_data.timestamp
 
             dt = rot_tai - ccw_data.timestamp
             if abs(dt) > MAX_CCW_TELEMETRY_AGE:
@@ -284,7 +287,6 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 velocityError=rot_data.actualVelocity - ccw_data.actualVelocity,
                 timestamp=rot_tai,
             )
-
             # If enabled then check the error and go to FAULT if too large.
             if self.summary_state == salobj.State.ENABLED:
                 if abs(following_error) <= self.config.max_ccw_following_error:
@@ -422,18 +424,14 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     async def do_enable(self, data: salobj.BaseMsgType) -> None:
         self.assert_summary_state(salobj.State.DISABLED)
 
-        if not self._bypass_ccw:
-            # Make sure we have camera cable wrap telemetry (from MTMount),
-            # and that it is recent enough to use for measuring following
-            # error.
-            try:
-                await self.mtmount_remote.tel_cameraCableWrap.next(
-                    flush=False, timeout=MAX_CCW_TELEMETRY_AGE * 10
-                )
-            except asyncio.TimeoutError:
-                raise salobj.ExpectedError(
-                    "Cannot enable the rotator until it receives camera cable wrap telemetry"
-                )
+        # Make sure we wait for at least one iteration of the
+        # ccw following task before proceeding.
+        await self._check_ccw_following_error_task
+
+        if (not self._bypass_ccw) and (self._reported_ccw_following_error_issue):
+            raise salobj.ExpectedError(
+                "Cannot enable the rotator until it receives camera cable wrap telemetry"
+            )
 
         self._reported_ccw_following_error_issue = False
         await super().do_enable(data)
@@ -636,9 +634,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             ],
         )
         if hasattr(self.tel_electrical.DataType(), "copleyFaultStatus"):
-            electrical[
-                "copleyFaultStatus"
-            ] = client.telemetry.copley_fault_status_register
+            electrical["copleyFaultStatus"] = (
+                client.telemetry.copley_fault_status_register
+            )
 
         await self.tel_electrical.set_write(**electrical)
 
