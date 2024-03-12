@@ -123,19 +123,12 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # for the next telemetry received when this timer expires
         self.next_clock_offset_task = utils.make_done_future()
 
-        # This is to keep the backward compatibility of ts_xml v20.1.0 that
+        # This is to keep the backward compatibility of ts_xml v20.2.0 that
         # does not have the following commands defined in xml.
-        # TODO: Remove this after ts_xml v20.2.0. (DM-42502)
+        # TODO: Remove this after ts_xml v20.3.0.
         component_info = ComponentInfo("MTRotator", "sal")
-        if "cmd_configureEmergencyAcceleration" in component_info.topics:
-            setattr(
-                self,
-                "do_configureEmergencyAcceleration",
-                self._do_configureEmergencyAcceleration,
-            )
-
-        if "cmd_configureEmergencyJerk" in component_info.topics:
-            setattr(self, "do_configureEmergencyJerk", self._do_configureEmergencyJerk)
+        if "cmd_configureJerk" in component_info.topics:
+            setattr(self, "do_configureJerk", self._do_configureJerk)
 
         super().__init__(
             name="MTRotator",
@@ -325,9 +318,6 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         """
         config = client.config
 
-        # This is to keep the backward compatibility of ts_xml v20.0.0 that
-        # does not have the 'drivesEnabled' defined in xml.
-        # TODO: Remove this after ts_xml v20.1.0. (DM-42502)
         configuration = dict(
             positionAngleLowerLimit=config.lower_pos_limit,
             positionAngleUpperLimit=config.upper_pos_limit,
@@ -341,9 +331,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             trackingLostTimeout=config.tracking_lost_timeout,
             disableLimitMaxTime=config.disable_limit_max_time,
             maxConfigurableVelocityLimit=config.max_velocity_limit,
+            drivesEnabled=config.drives_enabled,
         )
-        if hasattr(self.evt_configuration.DataType(), "drivesEnabled"):
-            configuration["drivesEnabled"] = config.drives_enabled
 
         await self.evt_configuration.set_write(**configuration)
 
@@ -352,6 +341,28 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # Always reset this counter; if newly connected then we'll start
         # accumulating the count and otherwise it makes no difference.
         self._num_ccw_following_errors = 0
+
+    async def _do_configureJerk(self, data: salobj.BaseMsgType) -> None:
+        """Configure the jerk limit.
+
+        Parameters
+        ----------
+        data : `salobj.BaseMsgType`
+            Data of the SAL message.
+
+        Raises
+        ------
+        `salobj.ExpectedError`
+            When the value is 0 or negative.
+        """
+
+        self.assert_enabled_substate(EnabledSubstate.STATIONARY)
+
+        jlimit = data.jlimit
+        if jlimit <= 0.0:
+            raise salobj.ExpectedError(f"{jlimit=} must be > 0")
+
+        await self.run_command(code=enums.CommandCode.CONFIG_JERK, param1=jlimit)
 
     async def do_configureAcceleration(self, data: salobj.BaseMsgType) -> None:
         """Specify the acceleration limit."""
@@ -371,9 +382,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             )
         await self.run_command(code=enums.CommandCode.CONFIG_VEL, param1=data.vlimit)
 
-    async def _do_configureEmergencyAcceleration(
-        self, data: salobj.BaseMsgType
-    ) -> None:
+    async def do_configureEmergencyAcceleration(self, data: salobj.BaseMsgType) -> None:
         """Configure the emergency acceleration limit.
 
         Parameters
@@ -391,13 +400,13 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         alimit = data.alimit
         if alimit <= 0.0:
-            raise salobj.ExpectedError(f"Emergency {alimit=} must be >= 0")
+            raise salobj.ExpectedError(f"Emergency {alimit=} must be > 0")
 
         await self.run_command(
             code=enums.CommandCode.CONFIG_ACCEL_EMERGENCY, param1=alimit
         )
 
-    async def _do_configureEmergencyJerk(self, data: salobj.BaseMsgType) -> None:
+    async def do_configureEmergencyJerk(self, data: salobj.BaseMsgType) -> None:
         """Configure the emergency jerk limit.
 
         Parameters
@@ -415,7 +424,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         jlimit = data.jlimit
         if jlimit <= 0.0:
-            raise salobj.ExpectedError(f"Emergency {jlimit=} must be >= 0")
+            raise salobj.ExpectedError(f"Emergency {jlimit=} must be > 0")
 
         await self.run_command(
             code=enums.CommandCode.CONFIG_JERK_EMERGENCY, param1=jlimit
@@ -587,20 +596,12 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # Strangely telemetry.state, fault_substate, and enabled_substate are
         # floats from the controller. But they should only have integer value,
         # so I output them as integers.
-
-        # This is to keep the backward compatibility of ts_xml v20.0.0 that
-        # does not have the 'faultSubstate' defined in xml.
-        # TODO: Remove this after ts_xml v20.1.0. (DM-42502)
         controller_state_data = dict(
             controllerState=int(client.telemetry.state),
             enabledSubstate=int(client.telemetry.enabled_substate),
+            faultSubstate=int(client.telemetry.fault_substate),
             applicationStatus=client.telemetry.application_status,
         )
-
-        if hasattr(self.evt_controllerState.DataType(), "faultSubstate"):
-            controller_state_data["faultSubstate"] = int(
-                client.telemetry.fault_substate
-            )
 
         await self.evt_controllerState.set_write(**controller_state_data)
 
@@ -620,9 +621,6 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             timestamp=tai_unix,
         )
 
-        # This is to keep the backward compatibility of ts_xml v20.0.0 that
-        # does not have the 'copleyFaultStatus' defined in xml.
-        # TODO: Remove this after ts_xml v20.1.0. (DM-42502)
         electrical = dict(
             copleyStatusWordDrive=[
                 client.telemetry.status_word_drive0,
@@ -632,11 +630,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 client.telemetry.latching_fault_status_register,
                 client.telemetry.latching_fault_status_register_axis_b,
             ],
+            copleyFaultStatus=client.telemetry.copley_fault_status_register,
         )
-        if hasattr(self.tel_electrical.DataType(), "copleyFaultStatus"):
-            electrical["copleyFaultStatus"] = (
-                client.telemetry.copley_fault_status_register
-            )
 
         await self.tel_electrical.set_write(**electrical)
 

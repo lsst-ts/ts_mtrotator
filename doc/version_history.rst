@@ -6,6 +6,17 @@
 Version History
 ###############
 
+v1.1.5
+------
+
+* Support the command to configure the jerk.
+* Remove the workaround relates to ts_xml 20.2.0.
+
+Requires:
+
+* ts_rotator_controller 1.7.0
+* ts_xml 20.3.0
+
 v1.1.4
 ------
 
