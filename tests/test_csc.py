@@ -21,6 +21,7 @@
 
 import asyncio
 import contextlib
+import logging
 import pathlib
 import typing
 import unittest
@@ -45,6 +46,14 @@ TEST_CONFIG_DIR = pathlib.Path(__file__).parent / "data" / "config"
 
 
 class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        """This classmethod is only called once, when preparing the unit
+        test.
+        """
+
+        cls.log = logging.getLogger("TestRotatorCsc")
+
     def setUp(self) -> None:
         super().setUp()
 
@@ -105,8 +114,8 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         acceleration = self.csc.mock_ctrl.rotator.path.at(
             motors_data.private_sndStamp
         ).acceleration
-        print(f"current={motors_data.current[0]:0.8f}")
-        print(f"torque={motors_data.torque[0]:0.8f}")
+        self.log.debug(f"current={motors_data.current[0]:0.8f}")
+        self.log.debug(f"torque={motors_data.torque[0]:0.8f}")
 
         if acceleration == 0.0:
             self.assertTrue(motors_data.current[0] == 0.0)
@@ -121,18 +130,18 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         assert motors_data.torque[0] == motors_data.torque[1]
 
         path_segment = self.csc.mock_ctrl.rotator.path.at(rotation_data.timestamp)
-        # Print the values to get some idea of how much slop is needed
+        # self.log.debug the values to get some idea of how much slop is needed
         # and so it is easier to determine which test failed
         # in the tracking task in test_track_good.
-        print(
+        self.log.debug(
             f"pos={rotation_data.demandPosition:0.8f}; "
             f"delta={abs(rotation_data.demandPosition - path_segment.position):0.8f}"
         )
-        print(
+        self.log.debug(
             f"vel={rotation_data.demandVelocity:0.8f}; "
             f"delta={abs(rotation_data.demandVelocity - path_segment.velocity):0.8f}"
         )
-        print(
+        self.log.debug(
             f"acc={rotation_data.demandAcceleration:0.8f}; "
             f"delta={abs(rotation_data.demandAcceleration - path_segment.acceleration):0.8f}"
         )
@@ -156,7 +165,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         )
 
         if self.prev_odometer is not None:
-            print(
+            self.log.debug(
                 f"odometer={rotation_data.odometer:0.8f}; "
                 f"prev_odometer={self.prev_odometer:0.8f}"
             )
@@ -229,8 +238,9 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         ), salobj.Controller(name="MTMount") as self.mtmount_controller:
             if run_mock_ccw:
                 self.mock_ccw_task = asyncio.create_task(self.mock_ccw_loop())
+                await asyncio.sleep(WAIT_FOR_CCW_DELAY)
             else:
-                print("do not run mock_ccw_loop")
+                self.log.debug("do not run mock_ccw_loop")
                 self.mock_ccw_task = utils.make_done_future()
             if initial_state == salobj.State.ENABLED:
                 await self.remote.cmd_enable.start(timeout=STD_TIMEOUT)
@@ -254,9 +264,11 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         Output cameraCableWrap telemetry that simulates
         the camera cable wrap following the rotator.
         """
-        print("mock_ccw_loop starting")
+        self.log.debug("mock_ccw_loop starting")
         self.enable_mock_ccw_telemetry = True
         try:
+            transient_error_persistency = 2
+            transient_error_occurrency = 0
             while self.enable_mock_ccw_telemetry:
                 rotation_data = await self.remote.tel_rotation.next(
                     flush=True, timeout=STD_TIMEOUT
@@ -273,19 +285,24 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 print(
                     "mock_ccw_loop: put tel_cameraCableWrap; "
                     f"position={ccw_position:0.2f}; "
-                    f"velocity={rotation_data.actualVelocity:0.2f}"
+                    f"velocity={rotation_data.actualVelocity:0.2f}; "
+                    f"transient error={self.ccw_transient_following_error}"
                 )
                 await self.mtmount_controller.tel_cameraCableWrap.set_write(
                     actualPosition=ccw_position,
                     actualVelocity=rotation_data.actualVelocity,
                     timestamp=ccw_tai,
                 )
-                self.ccw_transient_following_error = 0
-            print("mock_ccw_loop ends")
+                if self.ccw_transient_following_error != 0:
+                    transient_error_occurrency += 1
+                if transient_error_occurrency > transient_error_persistency:
+                    self.ccw_transient_following_error = 0
+                    transient_error_occurrency = 0
+            self.log.debug("mock_ccw_loop ends")
         except asyncio.CancelledError:
-            print("mock_ccw_loop canceled")
+            self.log.debug("mock_ccw_loop canceled")
         except Exception as e:
-            print(f"mock_ccw_loop failed: {e}")
+            self.log.debug(f"mock_ccw_loop failed: {e}")
 
     async def test_bin_script(self) -> None:
         """Test running from the command line script."""
@@ -322,7 +339,9 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # Wait for a few rotator telemetry messages,
             # which in turn trigger CCW telemetry.
             delay = self.csc.mock_ctrl.telemetry_interval * 5
-            print(f"Sleep for {delay} seconds, then cancel the mock CCW output")
+            self.log.debug(
+                f"Sleep for {delay} seconds, then cancel the mock CCW output"
+            )
             await asyncio.sleep(delay)
             assert self.csc.summary_state == salobj.State.ENABLED
 
@@ -401,19 +420,25 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
 
             # Increase the following error for a single CCW telemetry message;
             # the CSC should not be disabled
+            self.csc.config.num_ccw_following_errors = 10
             self.ccw_transient_following_error = (
                 self.csc.config.max_ccw_following_error + 0.1
             )
             await asyncio.sleep(WAIT_FOR_CCW_DELAY)
             assert self.csc.summary_state == salobj.State.ENABLED
 
+            while self.ccw_transient_following_error != 0:
+                await asyncio.sleep(WAIT_FOR_CCW_DELAY)
             # Set the # of fails to 1 and try again;
             # this time a single transient should cause failure.
             self.csc.config.num_ccw_following_errors = 1
             self.ccw_transient_following_error = (
                 self.csc.config.max_ccw_following_error + 0.1
             )
-            await self.assert_next_summary_state(salobj.State.FAULT)
+            print("Waiting for CSC to go to FAULT.")
+            await self.assert_next_summary_state(
+                salobj.State.FAULT, flush=False, timeout=STD_TIMEOUT
+            )
             await self.assert_next_sample(
                 topic=self.remote.evt_errorCode,
                 errorCode=ErrorCode.CONTROLLER_FAULT,
@@ -488,24 +513,12 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
     async def test_begin_standby(self) -> None:
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             await self.assert_next_summary_state(salobj.State.ENABLED)
-
-            # This is to keep the backward compatibility of ts_xml v20.0.0 that
-            # does not have the 'faultSubstate' defined in xml.
-            # TODO: Remove this after ts_xml v20.1.0. (DM-42502)
-            if hasattr(self.remote.evt_controllerState.DataType(), "faultSubstate"):
-                await self.assert_next_sample(
-                    topic=self.remote.evt_controllerState,
-                    controllerState=ControllerState.ENABLED,
-                    faultSubstate=0,  # FaultSubstate.NO_ERROR
-                    enabledSubstate=EnabledSubstate.STATIONARY,
-                )
-
-            else:
-                await self.assert_next_sample(
-                    topic=self.remote.evt_controllerState,
-                    controllerState=ControllerState.ENABLED,
-                    enabledSubstate=EnabledSubstate.STATIONARY,
-                )
+            await self.assert_next_sample(
+                topic=self.remote.evt_controllerState,
+                controllerState=ControllerState.ENABLED,
+                faultSubstate=0,  # FaultSubstate.NO_ERROR
+                enabledSubstate=EnabledSubstate.STATIONARY,
+            )
 
             self.assertTrue(self.csc.client.config.drives_enabled)
 
@@ -523,6 +536,28 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             assert data.offset == pytest.approx(0, abs=0.2)
             assert interval > CLOCK_OFFSET_EVENT_INTERVAL - 0.2
 
+    async def test_configure_jerk(self) -> None:
+        """Test the configureJerk command."""
+        async with self.make_csc(initial_state=salobj.State.ENABLED):
+            # This is to keep the backward compatibility of ts_xml v20.2.0 that
+            # does not have the "configureJerk" command defined in xml.
+            # TODO: Remove this after ts_xml v20.3.0.
+            if hasattr(self.remote, "cmd_configureJerk"):
+                # Test the good value
+                await self.remote.cmd_configureJerk.set_start(
+                    jlimit=1.0, timeout=STD_TIMEOUT
+                )
+
+                # Test the bad value
+                for bad_limit in (0, -1):
+                    with self.subTest(bad_limit=bad_limit):
+                        with salobj.assertRaisesAckError(
+                            ack=salobj.SalRetCode.CMD_FAILED
+                        ):
+                            await self.remote.cmd_configureJerk.set_start(
+                                jlimit=bad_limit, timeout=STD_TIMEOUT
+                            )
+
     async def test_configure_acceleration(self) -> None:
         """Test the configureAcceleration command."""
         async with self.make_csc(initial_state=salobj.State.ENABLED):
@@ -530,7 +565,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 flush=False, timeout=STD_TIMEOUT
             )
             initial_limit = data.accelerationLimit
-            print("initial_limit=", initial_limit)
+            self.log.debug("initial_limit=", initial_limit)
 
             self.remote.evt_configuration.flush()
 
@@ -584,78 +619,64 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
     async def test_configure_emergency_acceleration(self) -> None:
         """Test the configureEmergencyAcceleration command."""
         async with self.make_csc(initial_state=salobj.State.ENABLED):
-            # This is to keep the backward compatibility of ts_xml v20.1.0 that
-            # does not have the "configureEmergencyAcceleration" command
-            # defined in xml.
-            # TODO: Remove this after ts_xml v20.2.0. (DM-42502)
-            if hasattr(self.remote, "cmd_configureEmergencyAcceleration"):
-                # Test the good value
-                data = await self.remote.evt_configuration.next(
-                    flush=False, timeout=STD_TIMEOUT
-                )
-                initial_limit = data.emergencyAccelerationLimit
+            # Test the good value
+            data = await self.remote.evt_configuration.next(
+                flush=False, timeout=STD_TIMEOUT
+            )
+            initial_limit = data.emergencyAccelerationLimit
 
-                self.remote.evt_configuration.flush()
+            self.remote.evt_configuration.flush()
 
-                new_limit = initial_limit + 0.1
-                await self.remote.cmd_configureEmergencyAcceleration.set_start(
-                    alimit=new_limit, timeout=STD_TIMEOUT
-                )
+            new_limit = initial_limit + 0.1
+            await self.remote.cmd_configureEmergencyAcceleration.set_start(
+                alimit=new_limit, timeout=STD_TIMEOUT
+            )
 
-                await asyncio.sleep(1.0)
+            await asyncio.sleep(1.0)
 
-                data = await self.remote.evt_configuration.next(
-                    flush=False, timeout=STD_TIMEOUT
-                )
-                self.assertAlmostEqual(data.emergencyAccelerationLimit, new_limit)
+            data = await self.remote.evt_configuration.next(
+                flush=False, timeout=STD_TIMEOUT
+            )
+            self.assertAlmostEqual(data.emergencyAccelerationLimit, new_limit)
 
-                # Test the bad value
-                for bad_limit in (0, -1):
-                    with self.subTest(bad_limit=bad_limit):
-                        with salobj.assertRaisesAckError(
-                            ack=salobj.SalRetCode.CMD_FAILED
-                        ):
-                            await self.remote.cmd_configureEmergencyAcceleration.set_start(
-                                alimit=bad_limit, timeout=STD_TIMEOUT
-                            )
+            # Test the bad value
+            for bad_limit in (0, -1):
+                with self.subTest(bad_limit=bad_limit):
+                    with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED):
+                        await self.remote.cmd_configureEmergencyAcceleration.set_start(
+                            alimit=bad_limit, timeout=STD_TIMEOUT
+                        )
 
-    async def test_configure_configure_emergency_jerk(self) -> None:
+    async def test_configure_emergency_jerk(self) -> None:
         """Test the configureEmergencyJerk command."""
         async with self.make_csc(initial_state=salobj.State.ENABLED):
-            # This is to keep the backward compatibility of ts_xml v20.1.0 that
-            # does not have the "configureEmergencyJerk" command
-            # defined in xml.
-            # TODO: Remove this after ts_xml v20.2.0. (DM-42502)
-            if hasattr(self.remote, "cmd_configureEmergencyJerk"):
-                # Test the good value
-                data = await self.remote.evt_configuration.next(
-                    flush=False, timeout=STD_TIMEOUT
-                )
-                initial_limit = data.emergencyJerkLimit
+            # Test the good value
+            data = await self.remote.evt_configuration.next(
+                flush=False, timeout=STD_TIMEOUT
+            )
+            initial_limit = data.emergencyJerkLimit
 
-                self.remote.evt_configuration.flush()
+            self.remote.evt_configuration.flush()
 
-                new_limit = initial_limit + 0.1
-                await self.remote.cmd_configureEmergencyJerk.set_start(
-                    jlimit=new_limit, timeout=STD_TIMEOUT
-                )
+            new_limit = initial_limit + 0.1
+            await self.remote.cmd_configureEmergencyJerk.set_start(
+                jlimit=new_limit, timeout=STD_TIMEOUT
+            )
 
-                await asyncio.sleep(1.0)
+            await asyncio.sleep(1.0)
 
-                data = await self.remote.evt_configuration.next(
-                    flush=False, timeout=STD_TIMEOUT
-                )
-                self.assertAlmostEqual(data.emergencyJerkLimit, new_limit)
+            data = await self.remote.evt_configuration.next(
+                flush=False, timeout=STD_TIMEOUT
+            )
+            self.assertAlmostEqual(data.emergencyJerkLimit, new_limit)
 
-                # Test the bad value
-                for bad_limit in (0, -1):
-                    with self.subTest(bad_limit=bad_limit):
-                        with salobj.assertRaisesAckError(
-                            ack=salobj.SalRetCode.CMD_FAILED
-                        ):
-                            await self.remote.cmd_configureEmergencyJerk.set_start(
-                                jlimit=bad_limit, timeout=STD_TIMEOUT
-                            )
+            # Test the bad value
+            for bad_limit in (0, -1):
+                with self.subTest(bad_limit=bad_limit):
+                    with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED):
+                        await self.remote.cmd_configureEmergencyJerk.set_start(
+                            jlimit=bad_limit, timeout=STD_TIMEOUT
+                        )
 
     async def test_move(self) -> None:
         """Test the move command for point to point motion."""
@@ -671,15 +692,17 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             )
             assert self.csc.mock_ctrl.odometer == 0
             await self.check_telemetry()
-            data = await self.remote.evt_inPosition.next(
-                flush=False, timeout=STD_TIMEOUT
+            data = await self.assert_next_sample(
+                topic=self.remote.evt_inPosition, flush=False, timeout=STD_TIMEOUT
             )
             self.assertFalse(data.inPosition)
             t0 = utils.current_tai()
             await self.remote.cmd_move.set_start(
                 position=destination, timeout=STD_TIMEOUT
             )
-            data = await self.remote.evt_target.next(flush=False, timeout=STD_TIMEOUT)
+            data = await self.assert_next_sample(
+                topic=self.remote.evt_target, flush=False, timeout=STD_TIMEOUT
+            )
             target_event_delay = utils.current_tai() - t0
             self.assertAlmostEqual(data.position, destination)
             assert data.velocity == 0
@@ -699,7 +722,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 flush=False, timeout=STD_TIMEOUT + est_move_duration
             )
             self.assertTrue(data.inPosition)
-            print(f"Move duration: {utils.current_tai() - t0:0.2f} seconds")
+            self.log.debug(f"Move duration: {utils.current_tai() - t0:0.2f} seconds")
             await self.assert_next_sample(
                 topic=self.remote.evt_controllerState,
                 controllerState=ControllerState.ENABLED,
@@ -764,13 +787,15 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.STATIONARY,
             )
-            data = await self.remote.tel_rotation.next(flush=True, timeout=STD_TIMEOUT)
+            data = await self.assert_next_sample(
+                topic=self.remote.tel_rotation, flush=True, timeout=STD_TIMEOUT
+            )
             self.assertAlmostEqual(data.demandPosition, 0)
             self.assertAlmostEqual(
                 data.actualPosition, 0, delta=self.csc.mock_ctrl.position_jitter
             )
-            data = await self.remote.evt_inPosition.next(
-                flush=False, timeout=STD_TIMEOUT
+            data = await self.assert_next_sample(
+                self.remote.evt_inPosition, flush=False, timeout=STD_TIMEOUT
             )
             self.assertFalse(data.inPosition)
             await self.remote.cmd_trackStart.start(timeout=STD_TIMEOUT)
@@ -790,8 +815,8 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 await self.remote.cmd_track.set_start(
                     angle=pos, velocity=vel, tai=tai, timeout=STD_TIMEOUT
                 )
-                data = await self.remote.evt_target.next(
-                    flush=False, timeout=STD_TIMEOUT
+                data = await self.assert_next_sample(
+                    topic=self.remote.evt_target, flush=False, timeout=STD_TIMEOUT
                 )
                 self.assertAlmostEqual(data.tai, tai)
                 self.assertAlmostEqual(data.velocity, vel)
@@ -808,9 +833,6 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.assert_next_sample(
                 topic=self.remote.evt_inPosition, inPosition=True
             )
-
-            slew_duration = utils.current_tai() - slew_start_tai
-            print(f"Slew duration: {slew_duration:0.2f} seconds")
 
             await self.remote.cmd_stop.start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(
