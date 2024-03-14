@@ -173,6 +173,7 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
             enums.CommandCode.SET_CONSTANT_VEL: self.do_set_constant_vel,
             enums.CommandCode.CONFIG_VEL: self.do_config_vel,
             enums.CommandCode.CONFIG_ACCEL: self.do_config_accel,
+            enums.CommandCode.CONFIG_JERK: self.do_config_jerk,
             enums.CommandCode.TRACK_VEL_CMD: self.do_track_vel_cmd,
             enums.CommandCode.ENABLE_DRIVES: self.do_enable_drives,
             enums.CommandCode.CONFIG_ACCEL_EMERGENCY: self.do_config_accel_emergency,
@@ -251,6 +252,12 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
                 f"not in range (0, {constants.MAX_ACCEL_LIMIT}]"
             )
         self.config.accel_limit = command.param1
+        await self.write_config()
+
+    async def do_config_jerk(self, command: hexrotcomm.Command) -> None:
+        self.assert_stationary()
+        if command.param1 <= 0:
+            raise ValueError(f"Requested jerk limit {command.param1} <= 0")
         await self.write_config()
 
     async def do_config_accel_emergency(self, command: hexrotcomm.Command) -> None:
