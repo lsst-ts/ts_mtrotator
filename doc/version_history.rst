@@ -6,6 +6,16 @@
 Version History
 ###############
 
+v1.1.6
+------
+
+* Update the version of ts-conda-build to 0.4 in the conda recipe.
+
+Requires:
+
+* ts_rotator_controller 1.7.0
+* ts_xml 20.3.0
+
 v1.1.5
 ------
 
