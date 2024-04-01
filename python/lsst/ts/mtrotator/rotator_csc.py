@@ -227,6 +227,19 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         except Exception as error:
             self.log.warning(f"Ignoring the error when disabling the drives: {error}.")
 
+    async def begin_disable(self, data: salobj.BaseMsgType) -> None:
+        try:
+            await self.run_command(
+                code=self.CommandCode.SET_STATE,
+                param1=hexrotcomm.SetStateParam.STANDBY,
+            )
+            await self._enable_drives(False)
+
+        except Exception as error:
+            self.log.warning(
+                f"Ignoring the error when putting the controller to STANDBY state: {error}."
+            )
+
     async def check_ccw_following_error(self) -> None:
         """Check the camera cable wrap following error.
 

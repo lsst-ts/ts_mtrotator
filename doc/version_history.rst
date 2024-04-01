@@ -10,6 +10,7 @@ v1.1.7
 ------
 
 * Remove the workaround code of backward compatibility.
+* Overwrite the ``RotatorCsc.begin_disable()`` to do the state transition of controller.
 
 v1.1.6
 ------
