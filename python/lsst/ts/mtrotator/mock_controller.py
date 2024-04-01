@@ -31,6 +31,7 @@ from lsst.ts.xml.enums.MTRotator import (
     ApplicationStatus,
     ControllerState,
     EnabledSubstate,
+    FaultSubstate,
 )
 
 from . import constants, enums, structs
@@ -430,14 +431,10 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
             self.telemetry.rotator_pos_deg = curr_pos
 
             # Assign the FAULT sub-state
-
-            # This is to keep the backward compatibility of ts_xml v20.0.0 that
-            # does not have the 'faultSubstate' defined in xml.
-            # TODO: Remove this after ts_xml v20.1.0.
             if self.telemetry.state == ControllerState.STANDBY:
-                self.telemetry.fault_substate = 0  # FaultSubstate.NO_ERROR
+                self.telemetry.fault_substate = FaultSubstate.NO_ERROR
             elif self.telemetry.state == ControllerState.FAULT:
-                self.telemetry.fault_substate = 2  # FaultSubstate.WAIT_CLEAR_ERROR
+                self.telemetry.fault_substate = FaultSubstate.WAIT_CLEAR_ERROR
 
         except Exception:
             self.log.exception("update_telemetry failed; output incomplete telemetry")

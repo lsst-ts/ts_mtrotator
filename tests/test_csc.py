@@ -29,7 +29,12 @@ import unittest
 import pytest
 from lsst.ts import hexrotcomm, mtrotator, salobj, utils
 from lsst.ts.mtrotator.rotator_csc import CLOCK_OFFSET_EVENT_INTERVAL
-from lsst.ts.xml.enums.MTRotator import ControllerState, EnabledSubstate, ErrorCode
+from lsst.ts.xml.enums.MTRotator import (
+    ControllerState,
+    EnabledSubstate,
+    ErrorCode,
+    FaultSubstate,
+)
 
 STD_TIMEOUT = 30  # timeout for command ack
 
@@ -510,17 +515,35 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 enabled_commands=enabled_commands
             )
 
-    async def test_begin_standby(self) -> None:
+    async def test_begin_enable(self) -> None:
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             await self.assert_next_summary_state(salobj.State.ENABLED)
             await self.assert_next_sample(
                 topic=self.remote.evt_controllerState,
                 controllerState=ControllerState.ENABLED,
-                faultSubstate=0,  # FaultSubstate.NO_ERROR
+                faultSubstate=FaultSubstate.NO_ERROR,
                 enabledSubstate=EnabledSubstate.STATIONARY,
             )
 
             self.assertTrue(self.csc.client.config.drives_enabled)
+
+    async def test_begin_disable(self) -> None:
+        async with self.make_csc(initial_state=salobj.State.ENABLED):
+
+            for event in ("summaryState", "controllerState"):
+                getattr(self.remote, f"evt_{event}").flush()
+
+            await self.remote.cmd_disable.set_start()
+
+            await self.assert_next_summary_state(salobj.State.DISABLED)
+            await self.assert_next_sample(
+                topic=self.remote.evt_controllerState,
+                controllerState=ControllerState.STANDBY,
+                faultSubstate=FaultSubstate.NO_ERROR,
+                enabledSubstate=EnabledSubstate.STATIONARY,
+            )
+
+            self.assertFalse(self.csc.client.config.drives_enabled)
 
     async def test_clock_offset(self) -> None:
         async with self.make_csc(initial_state=salobj.State.ENABLED):
