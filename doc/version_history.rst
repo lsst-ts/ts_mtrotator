@@ -6,6 +6,11 @@
 Version History
 ###############
 
+v1.1.7
+------
+
+* Remove the workaround code of backward compatibility.
+
 v1.1.6
 ------
 
