@@ -28,7 +28,6 @@ import typing
 from pathlib import Path
 
 from lsst.ts import hexrotcomm, salobj, utils
-from lsst.ts.xml.component_info import ComponentInfo
 from lsst.ts.xml.enums.MTRotator import (
     ApplicationStatus,
     ControllerState,
@@ -123,13 +122,6 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # for the next telemetry received when this timer expires
         self.next_clock_offset_task = utils.make_done_future()
 
-        # This is to keep the backward compatibility of ts_xml v20.2.0 that
-        # does not have the following commands defined in xml.
-        # TODO: Remove this after ts_xml v20.3.0.
-        component_info = ComponentInfo("MTRotator", "sal")
-        if "cmd_configureJerk" in component_info.topics:
-            setattr(self, "do_configureJerk", self._do_configureJerk)
-
         super().__init__(
             name="MTRotator",
             index=0,
@@ -148,97 +140,6 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         await super().start()
         await self.mtmount_remote.start_task
         await self.evt_inPosition.set_write(inPosition=False, force_output=True)
-
-    # TODO DM-39787: move this method to BaseCsc in ts_hexrotcomm
-    # once MTHexapod supports MTRotator's simplified states.
-    async def enable_controller(self) -> None:
-        """Enable the low-level controller.
-
-        The version in hexrotcomm handles the original, complicated set of
-        states. MTRotator has since been updated with simplified states.
-
-        Raises
-        ------
-        lsst.ts.salobj.ExpectedError
-            If the low-level controller is in fault state and the fault
-            cannot be cleared. Or if a state transition command fails
-            (which is unlikely).
-        """
-        self.assert_commandable()
-
-        # Workaround the mypy check
-        assert self.client is not None
-
-        self.log.info(
-            f"Enable low-level controller; initial state={self.client.telemetry.state}"
-        )
-
-        if self.client.telemetry.state == ControllerState.ENABLED:
-            return
-
-        if self.client.telemetry.state == ControllerState.FAULT:
-            # Start by issuing the clearError command.
-            self.log.info("Clearing low-level controller fault state")
-            await self.run_command(
-                code=self.CommandCode.SET_STATE,
-                param1=hexrotcomm.SetStateParam.CLEAR_ERROR,
-            )
-
-        if self.client.telemetry.state != ControllerState.STANDBY:
-            raise salobj.ExpectedError(
-                f"Before enable: low-level controller state={self.client.telemetry.state}; "
-                f"expected {ControllerState.STANDBY!r}"
-            )
-
-        # Enable the drives first
-        await self._enable_drives(True)
-
-        try:
-            await self.run_command(
-                code=self.CommandCode.SET_STATE,
-                param1=hexrotcomm.SetStateParam.ENABLE,
-            )
-        except Exception as e:
-            print(f"LLC enable failed: {e!r}")
-            raise
-
-        await self.wait_controller_state(ControllerState.ENABLED)
-
-    async def _enable_drives(self, status: bool, time: float = 1.0) -> None:
-        """Enable the drives.
-
-        Parameters
-        ----------
-        status : `bool`
-            True if enable the drives. Otherwise, False.
-        time : `float`, optional
-            Sleep time in second. (the default is 1.0)
-        """
-
-        await self.run_command(
-            code=self.CommandCode.ENABLE_DRIVES,
-            param1=float(status),
-        )
-        await asyncio.sleep(time)
-
-    async def begin_standby(self, data: salobj.BaseMsgType) -> None:
-        try:
-            await self._enable_drives(False)
-        except Exception as error:
-            self.log.warning(f"Ignoring the error when disabling the drives: {error}.")
-
-    async def begin_disable(self, data: salobj.BaseMsgType) -> None:
-        try:
-            await self.run_command(
-                code=self.CommandCode.SET_STATE,
-                param1=hexrotcomm.SetStateParam.STANDBY,
-            )
-            await self._enable_drives(False)
-
-        except Exception as error:
-            self.log.warning(
-                f"Ignoring the error when putting the controller to STANDBY state: {error}."
-            )
 
     async def check_ccw_following_error(self) -> None:
         """Check the camera cable wrap following error.
@@ -355,7 +256,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # accumulating the count and otherwise it makes no difference.
         self._num_ccw_following_errors = 0
 
-    async def _do_configureJerk(self, data: salobj.BaseMsgType) -> None:
+    async def do_configureJerk(self, data: salobj.BaseMsgType) -> None:
         """Configure the jerk limit.
 
         Parameters
@@ -695,12 +596,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 self.check_ccw_following_error()
             )
 
-    # TODO DM-39787: remove the initial_ctrl_state argument
-    # (which is ignored) once MTHexapod supports
-    # MTRotator's simplified states.
-    def make_mock_controller(
-        self, initial_ctrl_state: ControllerState
-    ) -> mock_controller.MockMTRotatorController:
+    def make_mock_controller(self) -> mock_controller.MockMTRotatorController:
         return mock_controller.MockMTRotatorController(
             log=self.log,
             port=0,

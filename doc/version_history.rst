@@ -6,6 +6,16 @@
 Version History
 ###############
 
+v1.2.0
+------
+
+* Move functions to the **ts_hexrotcomm**.
+* Remove the workaround of backward compatibility of **ts_xml**.
+
+Requires:
+
+* ts_hexrotcomm 1.3.0
+
 v1.1.7
 ------
 
