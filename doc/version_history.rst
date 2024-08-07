@@ -10,7 +10,7 @@ v1.2.0
 ------
 
 * Move functions to the **ts_hexrotcomm**.
-* Remove the workaround of backward compatibility of **ts_xml**.
+* Remove the workaround of backward compatibility with **ts_xml**.
 
 Requires:
 
