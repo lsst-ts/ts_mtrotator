@@ -562,24 +562,18 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
     async def test_configure_jerk(self) -> None:
         """Test the configureJerk command."""
         async with self.make_csc(initial_state=salobj.State.ENABLED):
-            # This is to keep the backward compatibility of ts_xml v20.2.0 that
-            # does not have the "configureJerk" command defined in xml.
-            # TODO: Remove this after ts_xml v20.3.0.
-            if hasattr(self.remote, "cmd_configureJerk"):
-                # Test the good value
-                await self.remote.cmd_configureJerk.set_start(
-                    jlimit=1.0, timeout=STD_TIMEOUT
-                )
+            # Test the good value
+            await self.remote.cmd_configureJerk.set_start(
+                jlimit=1.0, timeout=STD_TIMEOUT
+            )
 
-                # Test the bad value
-                for bad_limit in (0, -1):
-                    with self.subTest(bad_limit=bad_limit):
-                        with salobj.assertRaisesAckError(
-                            ack=salobj.SalRetCode.CMD_FAILED
-                        ):
-                            await self.remote.cmd_configureJerk.set_start(
-                                jlimit=bad_limit, timeout=STD_TIMEOUT
-                            )
+            # Test the bad value
+            for bad_limit in (0, -1):
+                with self.subTest(bad_limit=bad_limit):
+                    with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED):
+                        await self.remote.cmd_configureJerk.set_start(
+                            jlimit=bad_limit, timeout=STD_TIMEOUT
+                        )
 
     async def test_configure_acceleration(self) -> None:
         """Test the configureAcceleration command."""
