@@ -58,7 +58,41 @@ properties:
     description: Time limit for connecting to the TCP/IP interface (sec)
     type: number
     exclusiveMinimum: 0
-required: [max_ccw_following_error, num_ccw_following_errors, host, port, connection_timeout]
+  vibration_detection_period:
+    description: >-
+      Detection period of the low-frequency vibration in seconds. The data collected in this
+      period will be used to do the fast Fourier transform (FFT).
+    type: number
+    exclusiveMinimum: 0
+  vibration_range:
+    description: >-
+      Detection range [low, high] of the low-frequency vibration in Hz.
+    type: array
+    minItems: 2
+    maxItems: 2
+    items:
+      type: number
+  vibration_max_times:
+    description: >-
+      If the times of low-frequency vibration exceed this value contiguously, it will
+      be identified as a vibration event.
+    type: integer
+    exclusiveMinimum: 0
+  vibration_snr:
+    description: >-
+      Signal-to-noise ratio (SNR) of the low-frequency vibration (peak in the frequency
+      diagram after FFT) to be identified as a vibration.
+    type: number
+    exclusiveMinimum: 0
+  vibration_threshold:
+    description: >-
+      Threshold to decide the post-processing data of rotator's position can be used
+      to do FFT or not (in degrees).
+    type: number
+    exclusiveMinimum: 0
+required: [max_ccw_following_error, num_ccw_following_errors, host, port, connection_timeout,
+           vibration_detection_period, vibration_range, vibration_max_times, vibration_snr,
+           vibration_threshold]
 additionalProperties: false
 """
 )
