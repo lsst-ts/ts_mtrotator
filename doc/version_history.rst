@@ -6,6 +6,13 @@
 Version History
 ###############
 
+v1.2.1
+------
+
+* Update the ``CONFIG_SCHEMA``.
+* Add the ``VibrationDetector``.
+* Update the ``RotatorCsc`` to use ``VibrationDetector``.
+
 v1.2.0
 ------
 
