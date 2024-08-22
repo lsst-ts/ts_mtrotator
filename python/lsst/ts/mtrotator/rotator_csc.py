@@ -234,6 +234,10 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             # that does not have the 'lowFrequencyVibration' defined in xml.
             if hasattr(self, "evt_lowFrequencyVibration"):
                 await self.evt_lowFrequencyVibration.set_write(frequency=frequency)
+                # EFD has a time window of some milliseconds. Therefore, sleep
+                # a little bit to give it the enough time to avoid the lost
+                # of event.
+                await asyncio.sleep(0.1)
 
     async def close_tasks(self) -> None:
         self.next_clock_offset_task.cancel()
