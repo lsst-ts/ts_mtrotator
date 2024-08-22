@@ -147,9 +147,6 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
 
         # Dict of command key: command
         extra_commands = {
-            # TODO DM-39787: move this command entry (and the do_fault method)
-            # to BaseMockController in ts_hexrotcomm,
-            # once MTHexapod supports MTRotator's simplified states.
             (
                 enums.CommandCode.SET_STATE,
                 hexrotcomm.SetStateParam.FAULT,
@@ -176,7 +173,6 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
             enums.CommandCode.CONFIG_ACCEL: self.do_config_accel,
             enums.CommandCode.CONFIG_JERK: self.do_config_jerk,
             enums.CommandCode.TRACK_VEL_CMD: self.do_track_vel_cmd,
-            enums.CommandCode.ENABLE_DRIVES: self.do_enable_drives,
             enums.CommandCode.CONFIG_ACCEL_EMERGENCY: self.do_config_accel_emergency,
             enums.CommandCode.CONFIG_JERK_EMERGENCY: self.do_config_jerk_emergency,
         }
@@ -206,34 +202,8 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         self.tracking_timer_task.cancel()
         await super().close()
 
-    # TODO DM-39787: move the following state transition methods
-    # to BaseMockController in ts_hexrotcomm (and delete the
-    # ones that raise NotImplementedError),
-    # once MTHexapod supports MTRotator's simplified states.
-    async def do_enter_control(self, command: hexrotcomm.Command) -> None:
-        raise NotImplementedError()
-
-    async def do_start(self, command: hexrotcomm.Command) -> None:
-        raise NotImplementedError()
-
-    async def do_disable(self, command: hexrotcomm.Command) -> None:
-        raise NotImplementedError()
-
-    async def do_exit(self, command: hexrotcomm.Command) -> None:
-        raise NotImplementedError()
-
-    async def do_enable(self, command: hexrotcomm.Command) -> None:
-        self.assert_state(ControllerState.STANDBY)
-        self.set_state(ControllerState.ENABLED)
-
-    async def do_standby(self, command: hexrotcomm.Command) -> None:
-        self.assert_state(ControllerState.ENABLED)
-        self.set_state(ControllerState.STANDBY)
-
     async def do_fault(self, command: hexrotcomm.Command) -> None:
         self.set_state(ControllerState.FAULT)
-
-    # TODO DM-39787: end of state transition methods to move.
 
     async def do_config_vel(self, command: hexrotcomm.Command) -> None:
         self.assert_stationary()
@@ -325,10 +295,6 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         self.tracking_timer_task.cancel()
         self.tracking_timer_task = asyncio.create_task(self.tracking_timer())
         self.track_vel_cmd_seen = True
-
-    async def do_enable_drives(self, command: hexrotcomm.Command) -> None:
-        self.config.drives_enabled = bool(command.param1)
-        await self.write_config()
 
     def set_state(self, state: hexrotcomm.Command) -> None:
         # Override to stop the rotator if not enabled
