@@ -37,6 +37,11 @@ class ValidationTestCase(unittest.TestCase):
             host="rot-pxi-controller.cp.lsst.org",
             port=5570,
             connection_timeout=10,
+            vibration_detection_period=15.0,
+            vibration_range=[0.3, 0.7],
+            vibration_max_times=4,
+            vibration_snr=10.0,
+            vibration_threshold=0.001,
         )
 
     def test_basics(self) -> None:
@@ -46,6 +51,11 @@ class ValidationTestCase(unittest.TestCase):
             host="foo.bar",
             port=25,
             connection_timeout=0.5,
+            vibration_detection_period=15.0,
+            vibration_range=[0.3, 0.7],
+            vibration_max_times=4,
+            vibration_snr=10.0,
+            vibration_threshold=0.001,
         )
         self.validator.validate(config)
 

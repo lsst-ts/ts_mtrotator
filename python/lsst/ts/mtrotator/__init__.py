@@ -31,3 +31,4 @@ from .mock_controller import *
 from .rotator_commander import *
 from .rotator_csc import *
 from .structs import *
+from .vibration_detector import *

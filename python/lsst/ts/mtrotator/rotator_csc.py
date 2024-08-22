@@ -36,6 +36,7 @@ from lsst.ts.xml.enums.MTRotator import (
 
 from . import __version__, constants, enums, mock_controller, structs
 from .config_schema import CONFIG_SCHEMA
+from .vibration_detector import VibrationDetector
 
 # Approximate interval between output of the clockOffset event (seconds).
 # The clockOffset event is output when the first new telemetry is received
@@ -45,6 +46,9 @@ CLOCK_OFFSET_EVENT_INTERVAL = 1
 # Maximum allowed age of the camera cable wrap telemetry data
 # when checking following error.
 MAX_CCW_TELEMETRY_AGE = 1
+
+# Telemetry rate in Hz
+TELEMETRY_RATE = 20.0
 
 
 class RotatorCsc(hexrotcomm.BaseCsc):
@@ -121,6 +125,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # telemetry_callback should output the clockOffset event
         # for the next telemetry received when this timer expires
         self.next_clock_offset_task = utils.make_done_future()
+
+        self._vibration_detector: VibrationDetector | None = None
+        self._detect_vibration_task = utils.make_done_future()
 
         super().__init__(
             name="MTRotator",
@@ -215,12 +222,42 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         except Exception:
             self.log.exception("check_ccw_following_error failed")
 
+    async def detect_vibration(self) -> None:
+        """Detect the vibration."""
+
+        assert self._vibration_detector is not None
+
+        frequencies = self._vibration_detector.check_vibration_frequency()
+
+        for frequency in frequencies:
+            # This is to keep the backward compatibility with ts_xml v22.0.0
+            # that does not have the 'lowFrequencyVibration' defined in xml.
+            if hasattr(self, "evt_lowFrequencyVibration"):
+                await self.evt_lowFrequencyVibration.set_write(frequency=frequency)
+                # EFD has a time window of some milliseconds. Therefore, sleep
+                # a little bit to give it the enough time to avoid the lost
+                # of event.
+                await asyncio.sleep(0.1)
+
     async def close_tasks(self) -> None:
         self.next_clock_offset_task.cancel()
+
+        if not self._detect_vibration_task.done():
+            self._detect_vibration_task.cancel()
+
         await super().close_tasks()
 
     async def configure(self, config: types.SimpleNamespace) -> None:
         self.config = config
+
+        self._vibration_detector = VibrationDetector(
+            config.vibration_detection_period,
+            config.vibration_max_times,
+            config.vibration_range,
+            config.vibration_snr,
+            config.vibration_threshold,
+            dt=1.0 / TELEMETRY_RATE,
+        )
 
     async def config_callback(self, client: hexrotcomm.CommandTelemetryClient) -> None:
         """Called when the TCP/IP controller outputs configuration.
@@ -595,6 +632,15 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             self._check_ccw_following_error_task = asyncio.create_task(
                 self.check_ccw_following_error()
             )
+
+        # Put the current and demand positions to the vibration detector
+        assert self._vibration_detector is not None
+
+        is_queue_full = self._vibration_detector.put_data(
+            client.telemetry.current_pos, client.telemetry.demand_pos
+        )
+        if self._detect_vibration_task.done() and is_queue_full:
+            self._detect_vibration_task = asyncio.create_task(self.detect_vibration())
 
     def make_mock_controller(self) -> mock_controller.MockMTRotatorController:
         return mock_controller.MockMTRotatorController(
