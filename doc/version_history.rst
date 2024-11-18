@@ -6,6 +6,11 @@
 Version History
 ###############
 
+v1.2.3
+------
+
+* Fix the race condition in ``RotatorCsc.do_move()``.
+
 v1.2.2
 ------
 
