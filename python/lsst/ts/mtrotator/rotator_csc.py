@@ -427,7 +427,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             code=enums.CommandCode.SET_ENABLED_SUBSTATE,
             param1=enums.SetEnabledSubstateParam.MOVE_POINT_TO_POINT,
         )
-        await self.run_multiple_commands(cmd1, cmd2)
+        # Need to wait some time between two commands for the trajectory
+        # generator in controller to update the newPt2PtCommand flag.
+        await self.run_multiple_commands(cmd1, cmd2, delay=0.1)
         await self.evt_target.set_write(
             position=data.position,
             velocity=0,
