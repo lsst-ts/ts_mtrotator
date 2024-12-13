@@ -6,6 +6,12 @@
 Version History
 ###############
 
+v1.2.4
+------
+
+* Increase the delay time from 0.1 sec to 0.2 sec in ``RotatorCsc.do_move()``.
+* Publish the error code events.
+
 v1.2.3
 ------
 

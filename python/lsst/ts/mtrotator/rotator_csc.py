@@ -121,6 +121,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         self._faulting = False
         self._prev_flags_tracking_success = False
         self._prev_flags_tracking_lost = False
+        self._prev_flags_no_new_track_command = False
 
         # telemetry_callback should output the clockOffset event
         # for the next telemetry received when this timer expires
@@ -168,6 +169,13 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 err_msg = "Cannot read cameraCableWrap telemetry"
                 if self.summary_state == salobj.State.ENABLED:
                     self.log.error(err_msg)
+
+                    # TODO: Use the ErrorCode.NO_NEW_CCW_TELEMETRY instead in
+                    # ts_xml v23.0.0
+                    await self.evt_errorCode.set_write(
+                        errorCode=4,
+                        errorReport=err_msg,
+                    )
                     await self.command_llv_fault()
                 elif not self._reported_ccw_following_error_issue:
                     self.log.warning(err_msg)
@@ -185,6 +193,13 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 )
                 if self.summary_state == salobj.State.ENABLED:
                     self.log.error(err_msg)
+
+                    # TODO: Use the ErrorCode.OLD_CCW_TELEMETRY instead in
+                    # ts_xml v23.0.0
+                    await self.evt_errorCode.set_write(
+                        errorCode=5,
+                        errorReport="Camera cable wrap telemetry is too old",
+                    )
                     await self.command_llv_fault()
                 elif not self._reported_ccw_following_error_issue:
                     self.log.warning(err_msg)
@@ -217,6 +232,13 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                         f"Camera cable wrap not following closely enough: "
                         f"error # {self._num_ccw_following_errors} = {following_error} "
                         f"> {self.config.max_ccw_following_error} deg"
+                    )
+
+                    # TODO: Use the ErrorCode.CCW_FOLLOWING_ERROR instead in
+                    # ts_xml v23.0.0
+                    await self.evt_errorCode.set_write(
+                        errorCode=6,
+                        errorReport="Camera cable wrap not following closely enough",
                     )
                     await self.command_llv_fault()
         except Exception:
@@ -429,7 +451,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         )
         # Need to wait some time between two commands for the trajectory
         # generator in controller to update the newPt2PtCommand flag.
-        await self.run_multiple_commands(cmd1, cmd2, delay=0.1)
+        await self.run_multiple_commands(cmd1, cmd2, delay=0.2)
         await self.evt_target.set_write(
             position=data.position,
             velocity=0,
@@ -614,10 +636,22 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             ),
         )
 
+        no_new_track_command = bool(client.telemetry.flags_no_new_track_cmd_error)
+        if self._prev_flags_no_new_track_command != no_new_track_command:
+            self._prev_flags_no_new_track_command = no_new_track_command
+
+            if no_new_track_command:
+                # TODO: Use the ErrorCode.NO_NEW_TRACK_COMMAND instead in
+                # ts_xml v23.0.0
+                await self.evt_errorCode.set_write(
+                    errorCode=7,
+                    errorReport="No new track command in timeout",
+                )
+
         await self.evt_tracking.set_write(
             tracking=bool(client.telemetry.flags_tracking_success),
             lost=bool(client.telemetry.flags_tracking_lost),
-            noNewCommand=bool(client.telemetry.flags_no_new_track_cmd_error),
+            noNewCommand=no_new_track_command,
         )
 
         safety_interlock = (
