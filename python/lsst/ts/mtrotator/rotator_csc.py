@@ -171,7 +171,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                     self.log.error(err_msg)
 
                     # TODO: Use the ErrorCode.NO_NEW_CCW_TELEMETRY instead in
-                    # ts_xml v23.0.0
+                    # ts_xml v23.0.0 (DM-48161)
                     await self.evt_errorCode.set_write(
                         errorCode=4,
                         errorReport=err_msg,
@@ -195,7 +195,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                     self.log.error(err_msg)
 
                     # TODO: Use the ErrorCode.OLD_CCW_TELEMETRY instead in
-                    # ts_xml v23.0.0
+                    # ts_xml v23.0.0 (DM-48161)
                     await self.evt_errorCode.set_write(
                         errorCode=5,
                         errorReport="Camera cable wrap telemetry is too old",
@@ -235,7 +235,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                     )
 
                     # TODO: Use the ErrorCode.CCW_FOLLOWING_ERROR instead in
-                    # ts_xml v23.0.0
+                    # ts_xml v23.0.0 (DM-48161)
                     await self.evt_errorCode.set_write(
                         errorCode=6,
                         errorReport="Camera cable wrap not following closely enough",
@@ -642,7 +642,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
             if no_new_track_command:
                 # TODO: Use the ErrorCode.NO_NEW_TRACK_COMMAND instead in
-                # ts_xml v23.0.0
+                # ts_xml v23.0.0 (DM-48161)
                 await self.evt_errorCode.set_write(
                     errorCode=7,
                     errorReport="No new track command in timeout",

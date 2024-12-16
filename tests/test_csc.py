@@ -356,7 +356,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.assert_next_summary_state(salobj.State.FAULT)
 
             # TODO: At ts_xml v23.0.0, use ErrorCode.NO_NEW_CCW_TELEMETRY
-            # instead.
+            # instead. (DM-48161)
             await self.assert_next_sample(topic=self.remote.evt_errorCode, errorCode=4)
             await self.assert_next_sample(
                 topic=self.remote.evt_errorCode, errorCode=ErrorCode.CONTROLLER_FAULT
@@ -394,7 +394,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.assert_next_summary_state(salobj.State.FAULT)
 
             # TODO: At ts_xml v23.0.0, use ErrorCode.CCW_FOLLOWING_ERROR
-            # instead.
+            # instead. (DM-48161)
             await self.assert_next_sample(topic=self.remote.evt_errorCode, errorCode=6)
             await self.assert_next_sample(
                 topic=self.remote.evt_errorCode, errorCode=ErrorCode.CONTROLLER_FAULT
@@ -422,7 +422,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             await self.assert_next_summary_state(salobj.State.FAULT)
 
             # TODO: At ts_xml v23.0.0, use ErrorCode.CCW_FOLLOWING_ERROR
-            # instead.
+            # instead. (DM-48161)
             await self.assert_next_sample(topic=self.remote.evt_errorCode, errorCode=6)
             await self.assert_next_sample(
                 topic=self.remote.evt_errorCode,
@@ -458,7 +458,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             )
 
             # TODO: At ts_xml v23.0.0, use ErrorCode.CCW_FOLLOWING_ERROR
-            # instead.
+            # instead. (DM-48161)
             await self.assert_next_sample(topic=self.remote.evt_errorCode, errorCode=6)
             await self.assert_next_sample(
                 topic=self.remote.evt_errorCode,
@@ -1043,7 +1043,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             )
 
             # TODO: At ts_xml v23.0.0, use ErrorCode.NO_NEW_TRACK_COMMAND
-            # instead.
+            # instead. (DM-48161)
             await self.assert_next_sample(topic=self.remote.evt_errorCode, errorCode=7)
 
     async def assert_next_ccw_following_error(
