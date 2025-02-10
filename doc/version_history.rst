@@ -6,6 +6,11 @@
 Version History
 ###############
 
+v1.2.5
+------
+
+* Support the lock/unlock command.
+
 v1.2.4
 ------
 
