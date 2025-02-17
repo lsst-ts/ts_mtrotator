@@ -526,9 +526,17 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             "stop",
             "trackStart",
         )
+        # TODO: Put these skip commands to the enabled commands after the
+        # ts_xml v23.0.0 release. They are not available in the current
+        # ts_xml version.
+        skip_commands = (
+            "lockMotion",
+            "unlockMotion",
+        )
         async with self.make_csc(initial_state=salobj.State.STANDBY):
             await self.check_standard_state_transitions(
-                enabled_commands=enabled_commands
+                enabled_commands=enabled_commands,
+                skip_commands=skip_commands,
             )
 
     async def test_begin_enable(self) -> None:
@@ -1045,6 +1053,87 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # TODO: At ts_xml v23.0.0, use ErrorCode.NO_NEW_TRACK_COMMAND
             # instead. (DM-48161)
             await self.assert_next_sample(topic=self.remote.evt_errorCode, errorCode=7)
+
+    async def test_do_lockMotion(self) -> None:
+        async with self.make_csc(initial_state=salobj.State.ENABLED):
+            # TODO: remove this after the ts_xml v23.0.0 is released. This is
+            # not supported at the current v22.1.0.
+            if hasattr(self.remote, "cmd_lockMotion") and hasattr(
+                self.remote, "evt_motionLockState"
+            ):
+                # Flush the following events to check the related new events
+                # once the lockMotion command is sent.
+                for event in ("motionLockState", "controllerState"):
+                    getattr(self.remote, f"evt_{event}").flush()
+
+                await self.remote.cmd_move.set_start(position=90.0, timeout=STD_TIMEOUT)
+
+                await self.remote.cmd_lockMotion.start(timeout=STD_TIMEOUT)
+
+                # The moving motion is stopped.
+                await self.assert_next_sample(
+                    topic=self.remote.evt_controllerState,
+                    controllerState=ControllerState.ENABLED,
+                    enabledSubstate=EnabledSubstate.MOVING_POINT_TO_POINT,
+                )
+                await self.assert_next_sample(
+                    topic=self.remote.evt_controllerState,
+                    controllerState=ControllerState.ENABLED,
+                    enabledSubstate=EnabledSubstate.STATIONARY,
+                )
+
+                # The Copley drive is disabled
+                await self.assert_next_sample(
+                    topic=self.remote.evt_controllerState,
+                    controllerState=ControllerState.STANDBY,
+                    enabledSubstate=EnabledSubstate.STATIONARY,
+                )
+
+                await self.assert_next_sample(
+                    topic=self.remote.evt_motionLockState,
+                    lockState=1,  # Use MotionLockState.LOCKING when ts_xml is ready
+                )
+                await self.assert_next_sample(
+                    topic=self.remote.evt_motionLockState,
+                    lockState=3,  # Use MotionLockState.LOCKED when ts_xml is ready
+                )
+
+                # Check all the move and track related commands are disabled
+                for command in ["move", "stop", "track", "trackStart"]:
+                    with salobj.assertRaisesAckError():
+                        await getattr(self.remote, f"cmd_{command}").set_start()
+
+    async def test_do_unlockMotion(self) -> None:
+        async with self.make_csc(initial_state=salobj.State.ENABLED):
+            # TODO: remove this after the ts_xml v23.0.0 is released. This is
+            # not supported at the current v22.1.0.
+            if hasattr(self.remote, "cmd_unlockMotion") and hasattr(
+                self.remote, "evt_motionLockState"
+            ):
+                await self.remote.cmd_lockMotion.start(timeout=STD_TIMEOUT)
+
+                # Flush the following events to check the related new events
+                # once the lockMotion command is sent.
+                for event in ("motionLockState", "controllerState"):
+                    getattr(self.remote, f"evt_{event}").flush()
+
+                await self.remote.cmd_unlockMotion.start(timeout=STD_TIMEOUT)
+
+                # The Copley drive is enabled
+                await self.assert_next_sample(
+                    topic=self.remote.evt_controllerState,
+                    controllerState=ControllerState.ENABLED,
+                    enabledSubstate=EnabledSubstate.STATIONARY,
+                )
+
+                await self.assert_next_sample(
+                    topic=self.remote.evt_motionLockState,
+                    lockState=2,  # Use MotionLockState.UNLOCKING when ts_xml is ready
+                )
+                await self.assert_next_sample(
+                    topic=self.remote.evt_motionLockState,
+                    lockState=0,  # Use MotionLockState.UNLOCKED when ts_xml is ready
+                )
 
     async def assert_next_ccw_following_error(
         self,

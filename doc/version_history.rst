@@ -6,6 +6,12 @@
 Version History
 ###############
 
+v1.2.5
+------
+
+* Support the lock/unlock command.
+* Remove the **ts-idl**.
+
 v1.2.4
 ------
 

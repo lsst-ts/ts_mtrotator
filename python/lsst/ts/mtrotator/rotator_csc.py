@@ -92,6 +92,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     valid_simulation_modes = [0, 1]
     version = __version__
 
+    # Command timeout in second
+    COMMAND_TIMEOUT = 10
+
     def __init__(
         self,
         config_dir: str | Path | None = None,
@@ -130,6 +133,10 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         self._vibration_detector: VibrationDetector | None = None
         self._detect_vibration_task = utils.make_done_future()
 
+        self._is_motion_locked = False
+
+        # TODO: Remove the "extra_commands" at the ts_xml v23.0.0. They are not
+        # supported at the current v22.1.0.
         super().__init__(
             name="MTRotator",
             index=0,
@@ -141,6 +148,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             initial_state=initial_state,
             override=override,
             simulation_mode=simulation_mode,
+            extra_commands={"lockMotion", "unlockMotion"},
         )
         self.mtmount_remote = salobj.Remote(domain=self.domain, name="MTMount")
 
@@ -427,6 +435,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         """Go to the position specified by the most recent ``positionSet``
         command.
         """
+
+        self.assert_is_not_locked()
+
         self.assert_enabled_substate(EnabledSubstate.STATIONARY)
 
         # Workaround the mypy check
@@ -459,8 +470,23 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             force_output=True,
         )
 
+    def assert_is_not_locked(self) -> None:
+        """Assert the motion is not locked.
+
+        Raises
+        ------
+        `AssertionError`
+            When the motion is locked.
+        """
+
+        if self._is_motion_locked:
+            raise AssertionError("Motion is locked")
+
     async def do_stop(self, data: salobj.BaseMsgType) -> None:
         """Halt tracking or any other motion."""
+
+        self.assert_is_not_locked()
+
         if self.summary_state != salobj.State.ENABLED:
             raise salobj.ExpectedError("Not enabled")
         await self.run_command(
@@ -470,6 +496,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
     async def do_track(self, data: salobj.BaseMsgType) -> None:
         """Specify a position, velocity, TAI time tracking update."""
+
+        self.assert_is_not_locked()
+
         if self.summary_state != salobj.State.ENABLED:
             raise salobj.ExpectedError("Not enabled")
 
@@ -519,12 +548,159 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         Once this is run you must issue ``track`` commands at 10-20Hz
         until you are done tracking, then issue the ``stop`` command.
         """
+
+        self.assert_is_not_locked()
+
         self.assert_enabled_substate(EnabledSubstate.STATIONARY)
         await self.run_command(
             code=enums.CommandCode.SET_ENABLED_SUBSTATE,
             param1=enums.SetEnabledSubstateParam.TRACK,
         )
         self._tracking_started_telemetry_counter = 2
+
+    async def do_lockMotion(self, data: salobj.BaseMsgType) -> None:
+        """Lock the rotator motion.
+
+        Parameters
+        ----------
+        data : `salobj.BaseMsgType`
+            Data of the SAL message.
+
+        Raises
+        ------
+        `salobj.ExpectedError`
+            When the motion is failed to stop.
+        """
+
+        self.assert_enabled()
+
+        if self._is_motion_locked:
+            return
+
+        await self.cmd_lockMotion.ack_in_progress(data, timeout=self.COMMAND_TIMEOUT)
+
+        await self._pub_event_motion_lock_state(
+            1, data.private_identity
+        )  # Use MotionLockState.LOCKING
+
+        # Workaround the mypy check
+        assert self.client is not None
+
+        # Stop the motion when it is not stationary
+        if self.is_controller_enabled() and (
+            self.client.telemetry.enabled_substate != EnabledSubstate.STATIONARY
+        ):
+            await self.run_command(
+                code=enums.CommandCode.SET_ENABLED_SUBSTATE,
+                param1=enums.SetEnabledSubstateParam.STOP,
+            )
+
+            max_attempt = 10
+            attempt = 0
+            while (
+                self.client.telemetry.enabled_substate != EnabledSubstate.STATIONARY
+            ) and (attempt < max_attempt):
+                await asyncio.sleep(1.0)
+                attempt += 1
+
+            if attempt >= max_attempt:
+                # TODO: Add a new error code in ts_xml v23.0.0 (DM-48161)
+                await self.evt_errorCode.set_write(
+                    errorCode=8,
+                    errorReport="Fail to lock the rotator motion",
+                )
+                await self.command_llv_fault()
+
+                raise salobj.ExpectedError(f"Cannot stop the motion with {attempt=}")
+
+        # Standby the Copley drives
+        if self.is_controller_enabled():
+            await self.standby_controller()
+
+        self._is_motion_locked = True
+
+        await self._pub_event_motion_lock_state(
+            3, data.private_identity
+        )  # Use MotionLockState.LOCKED
+
+    async def _pub_event_motion_lock_state(
+        self, lock_state: int, identity: str
+    ) -> None:
+        """Publish the event of motion lock state.
+
+        Parameters
+        ----------
+        lock_state : `int`
+            Lock state.
+        identity : `str`
+            Identity of the entity that locked/unlocked.
+        """
+
+        # TODO: Remove this method at the ts_xml v23.0.0. It is not supported
+        # at the current v22.1.0.
+        if hasattr(self, "evt_motionLockState"):
+            await self.evt_motionLockState.set_write(
+                lockState=lock_state, identity=identity
+            )
+
+    def is_controller_enabled(self) -> bool:
+        """Controller is enabled or not.
+
+        Returns
+        -------
+        `bool`
+            True if the controller is enabled. False otherwise.
+        """
+
+        # Workaround the mypy check
+        assert self.client is not None
+
+        return self.client.telemetry.state == ControllerState.ENABLED
+
+    async def do_unlockMotion(self, data: salobj.BaseMsgType) -> None:
+        """Unlock the rotator motion.
+
+        Parameters
+        ----------
+        data : `salobj.BaseMsgType`
+            Data of the SAL message.
+        """
+
+        self.assert_enabled()
+
+        if not self._is_motion_locked:
+            return
+
+        await self.cmd_unlockMotion.ack_in_progress(data, timeout=self.COMMAND_TIMEOUT)
+
+        await self._pub_event_motion_lock_state(
+            2, data.private_identity
+        )  # Use MotionLockState.UNLOCKING
+
+        self._is_motion_locked = False
+
+        # Re-enable the Copley drives
+        try:
+            await self.enable_controller()
+
+        except Exception:
+            self.log.info(
+                "Fail to re-enable the controller from the lock state. "
+                "The intenal locking flag has been reset anyway."
+            )
+
+            # TODO: Add a new error code in ts_xml v23.0.0 (DM-48161)
+            await self.evt_errorCode.set_write(
+                errorCode=9,
+                errorReport="Fail to unlock the rotator motion",
+            )
+            await self.command_llv_fault()
+
+            raise
+
+        await self._pub_event_motion_lock_state(
+            0, data.private_identity
+        )  # Use MotionLockState.UNLOCKED
 
     async def command_llv_fault(self) -> None:
         """Command the low-level controller to go to fault state."""
