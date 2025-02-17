@@ -148,7 +148,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             initial_state=initial_state,
             override=override,
             simulation_mode=simulation_mode,
-            extra_commands={self.do_lockMotion, self.do_unlockMotion},
+            extra_commands={"lockMotion", "unlockMotion"},
         )
         self.mtmount_remote = salobj.Remote(domain=self.domain, name="MTMount")
 
@@ -436,7 +436,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         command.
         """
 
-        self.assert_is_motion_locked()
+        self.assert_is_not_locked()
 
         self.assert_enabled_substate(EnabledSubstate.STATIONARY)
 
@@ -470,22 +470,22 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             force_output=True,
         )
 
-    def assert_is_motion_locked(self) -> None:
-        """Assert the motion is locked.
+    def assert_is_not_locked(self) -> None:
+        """Assert the motion is not locked.
 
         Raises
         ------
-        `salobj.ExpectedError`
+        `AssertionError`
             When the motion is locked.
         """
 
         if self._is_motion_locked:
-            raise salobj.ExpectedError("Motion is locked")
+            raise AssertionError("Motion is locked")
 
     async def do_stop(self, data: salobj.BaseMsgType) -> None:
         """Halt tracking or any other motion."""
 
-        self.assert_is_motion_locked()
+        self.assert_is_not_locked()
 
         if self.summary_state != salobj.State.ENABLED:
             raise salobj.ExpectedError("Not enabled")
@@ -497,7 +497,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     async def do_track(self, data: salobj.BaseMsgType) -> None:
         """Specify a position, velocity, TAI time tracking update."""
 
-        self.assert_is_motion_locked()
+        self.assert_is_not_locked()
 
         if self.summary_state != salobj.State.ENABLED:
             raise salobj.ExpectedError("Not enabled")
@@ -549,7 +549,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         until you are done tracking, then issue the ``stop`` command.
         """
 
-        self.assert_is_motion_locked()
+        self.assert_is_not_locked()
 
         self.assert_enabled_substate(EnabledSubstate.STATIONARY)
         await self.run_command(
@@ -571,6 +571,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         `salobj.ExpectedError`
             When the motion is failed to stop.
         """
+
+        self.assert_enabled()
 
         if self._is_motion_locked:
             return
@@ -602,6 +604,13 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 attempt += 1
 
             if attempt >= max_attempt:
+                # TODO: Add a new error code in ts_xml v23.0.0 (DM-48161)
+                await self.evt_errorCode.set_write(
+                    errorCode=8,
+                    errorReport="Fail to lock the rotator motion",
+                )
+                await self.command_llv_fault()
+
                 raise salobj.ExpectedError(f"Cannot stop the motion with {attempt=}")
 
         # Standby the Copley drives
@@ -657,6 +666,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             Data of the SAL message.
         """
 
+        self.assert_enabled()
+
         if not self._is_motion_locked:
             return
 
@@ -666,11 +677,26 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             2, data.private_identity
         )  # Use MotionLockState.UNLOCKING
 
+        self._is_motion_locked = False
+
         # Re-enable the Copley drives
-        if self.summary_state == salobj.State.ENABLED:
+        try:
             await self.enable_controller()
 
-        self._is_motion_locked = False
+        except Exception:
+            self.log.info(
+                "Fail to re-enable the controller from the lock state. "
+                "The intenal locking flag has been reset anyway."
+            )
+
+            # TODO: Add a new error code in ts_xml v23.0.0 (DM-48161)
+            await self.evt_errorCode.set_write(
+                errorCode=9,
+                errorReport="Fail to unlock the rotator motion",
+            )
+            await self.command_llv_fault()
+
+            raise
 
         await self._pub_event_motion_lock_state(
             0, data.private_identity
