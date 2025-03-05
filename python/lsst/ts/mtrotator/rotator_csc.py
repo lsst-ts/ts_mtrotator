@@ -32,6 +32,8 @@ from lsst.ts.xml.enums.MTRotator import (
     ApplicationStatus,
     ControllerState,
     EnabledSubstate,
+    ErrorCode,
+    MotionLockState,
 )
 
 from . import __version__, constants, enums, mock_controller, structs
@@ -135,8 +137,6 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         self._is_motion_locked = False
 
-        # TODO: Remove the "extra_commands" at the ts_xml v23.0.0. They are not
-        # supported at the current v22.1.0.
         super().__init__(
             name="MTRotator",
             index=0,
@@ -148,7 +148,6 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             initial_state=initial_state,
             override=override,
             simulation_mode=simulation_mode,
-            extra_commands={"lockMotion", "unlockMotion"},
         )
         self.mtmount_remote = salobj.Remote(domain=self.domain, name="MTMount")
 
@@ -178,10 +177,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 if self.summary_state == salobj.State.ENABLED:
                     self.log.error(err_msg)
 
-                    # TODO: Use the ErrorCode.NO_NEW_CCW_TELEMETRY instead in
-                    # ts_xml v23.0.0 (DM-48161)
                     await self.evt_errorCode.set_write(
-                        errorCode=4,
+                        errorCode=ErrorCode.NO_NEW_CCW_TELEMETRY,
                         errorReport=err_msg,
                     )
                     await self.command_llv_fault()
@@ -202,10 +199,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 if self.summary_state == salobj.State.ENABLED:
                     self.log.error(err_msg)
 
-                    # TODO: Use the ErrorCode.OLD_CCW_TELEMETRY instead in
-                    # ts_xml v23.0.0 (DM-48161)
                     await self.evt_errorCode.set_write(
-                        errorCode=5,
+                        errorCode=ErrorCode.OLD_CCW_TELEMETRY,
                         errorReport="Camera cable wrap telemetry is too old",
                     )
                     await self.command_llv_fault()
@@ -242,10 +237,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                         f"> {self.config.max_ccw_following_error} deg"
                     )
 
-                    # TODO: Use the ErrorCode.CCW_FOLLOWING_ERROR instead in
-                    # ts_xml v23.0.0 (DM-48161)
                     await self.evt_errorCode.set_write(
-                        errorCode=6,
+                        errorCode=ErrorCode.CCW_FOLLOWING_ERROR,
                         errorReport="Camera cable wrap not following closely enough",
                     )
                     await self.command_llv_fault()
@@ -579,9 +572,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         await self.cmd_lockMotion.ack_in_progress(data, timeout=self.COMMAND_TIMEOUT)
 
-        await self._pub_event_motion_lock_state(
-            1, data.private_identity
-        )  # Use MotionLockState.LOCKING
+        await self.evt_motionLockState.set_write(
+            lockState=MotionLockState.LOCKING, identity=data.private_identity
+        )
 
         # Workaround the mypy check
         assert self.client is not None
@@ -604,7 +597,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 attempt += 1
 
             if attempt >= max_attempt:
-                # TODO: Add a new error code in ts_xml v23.0.0 (DM-48161)
+                # TODO: Use ErrorCode.FAIL_TO_LOCK in ts_xml v23.1.0.
                 await self.evt_errorCode.set_write(
                     errorCode=8,
                     errorReport="Fail to lock the rotator motion",
@@ -619,29 +612,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         self._is_motion_locked = True
 
-        await self._pub_event_motion_lock_state(
-            3, data.private_identity
-        )  # Use MotionLockState.LOCKED
-
-    async def _pub_event_motion_lock_state(
-        self, lock_state: int, identity: str
-    ) -> None:
-        """Publish the event of motion lock state.
-
-        Parameters
-        ----------
-        lock_state : `int`
-            Lock state.
-        identity : `str`
-            Identity of the entity that locked/unlocked.
-        """
-
-        # TODO: Remove this method at the ts_xml v23.0.0. It is not supported
-        # at the current v22.1.0.
-        if hasattr(self, "evt_motionLockState"):
-            await self.evt_motionLockState.set_write(
-                lockState=lock_state, identity=identity
-            )
+        await self.evt_motionLockState.set_write(
+            lockState=MotionLockState.LOCKED, identity=data.private_identity
+        )
 
     def is_controller_enabled(self) -> bool:
         """Controller is enabled or not.
@@ -673,9 +646,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         await self.cmd_unlockMotion.ack_in_progress(data, timeout=self.COMMAND_TIMEOUT)
 
-        await self._pub_event_motion_lock_state(
-            2, data.private_identity
-        )  # Use MotionLockState.UNLOCKING
+        await self.evt_motionLockState.set_write(
+            lockState=MotionLockState.UNLOCKING, identity=data.private_identity
+        )
 
         self._is_motion_locked = False
 
@@ -689,7 +662,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 "The intenal locking flag has been reset anyway."
             )
 
-            # TODO: Add a new error code in ts_xml v23.0.0 (DM-48161)
+            # TODO: Use ErrorCode.FAIL_TO_UNLOCK in ts_xml v23.1.0
             await self.evt_errorCode.set_write(
                 errorCode=9,
                 errorReport="Fail to unlock the rotator motion",
@@ -698,9 +671,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
             raise
 
-        await self._pub_event_motion_lock_state(
-            0, data.private_identity
-        )  # Use MotionLockState.UNLOCKED
+        await self.evt_motionLockState.set_write(
+            lockState=MotionLockState.UNLOCKED, identity=data.private_identity
+        )
 
     async def command_llv_fault(self) -> None:
         """Command the low-level controller to go to fault state."""
@@ -817,10 +790,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             self._prev_flags_no_new_track_command = no_new_track_command
 
             if no_new_track_command:
-                # TODO: Use the ErrorCode.NO_NEW_TRACK_COMMAND instead in
-                # ts_xml v23.0.0 (DM-48161)
                 await self.evt_errorCode.set_write(
-                    errorCode=7,
+                    errorCode=ErrorCode.NO_NEW_TRACK_COMMAND,
                     errorReport="No new track command in timeout",
                 )
 
