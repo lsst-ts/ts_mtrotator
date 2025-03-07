@@ -6,6 +6,11 @@
 Version History
 ###############
 
+v1.2.6
+------
+
+* Remove the workaround of ts_xml backward compatibility.
+
 v1.2.5
 ------
 
