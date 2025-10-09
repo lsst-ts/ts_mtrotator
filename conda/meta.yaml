@@ -31,15 +31,17 @@ requirements:
   host:
     - python {{ python }}
     - pip
-    - setuptools_scm {{ setuptools_scm }}
-    - setuptools {{ setuptools }}
+    - setuptools_scm
+    - setuptools
   build:
     - python {{python}}
+    - setuptools_scm
+    - setuptools
     - ts-conda-build =0.5
   run:
     - python {{ python }}
-    - setuptools {{ setuptools }}
-    - setuptools_scm {{ setuptools_scm }}
+    - setuptools
+    - setuptools_scm
     - scipy
     - ts-xml
     - ts-salobj
