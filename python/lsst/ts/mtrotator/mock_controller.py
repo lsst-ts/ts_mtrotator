@@ -187,9 +187,7 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
             initial_state=initial_state,
         )
 
-    async def end_run_command(
-        self, command: hexrotcomm.Command, cmd_method: typing.Coroutine
-    ) -> None:
+    async def end_run_command(self, command: hexrotcomm.Command, cmd_method: typing.Coroutine) -> None:
         if cmd_method != self.do_position_set:
             self.telemetry.set_pos = math.nan
 
@@ -209,8 +207,7 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         self.assert_stationary()
         if not 0 < command.param1 <= constants.MAX_VEL_LIMIT:
             raise ValueError(
-                f"Requested velocity limit {command.param1} "
-                f"not in range (0, {constants.MAX_VEL_LIMIT}]"
+                f"Requested velocity limit {command.param1} not in range (0, {constants.MAX_VEL_LIMIT}]"
             )
         self.config.velocity_limit = command.param1
         await self.write_config()
@@ -219,8 +216,7 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
         self.assert_stationary()
         if not 0 < command.param1 <= constants.MAX_ACCEL_LIMIT:
             raise ValueError(
-                f"Requested accel limit {command.param1} "
-                f"not in range (0, {constants.MAX_ACCEL_LIMIT}]"
+                f"Requested accel limit {command.param1} not in range (0, {constants.MAX_ACCEL_LIMIT}]"
             )
         self.config.accel_limit = command.param1
         await self.write_config()
@@ -269,12 +265,8 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
 
     async def do_move_point_to_point(self, command: hexrotcomm.Command) -> None:
         if not math.isfinite(self.telemetry.set_pos):
-            raise RuntimeError(
-                "Must call POSITION_SET before calling MOVE_POINT_TO_POINT"
-            )
-        self.rotator.set_target(
-            tai=utils.current_tai(), position=self.telemetry.set_pos, velocity=0
-        )
+            raise RuntimeError("Must call POSITION_SET before calling MOVE_POINT_TO_POINT")
+        self.rotator.set_target(tai=utils.current_tai(), position=self.telemetry.set_pos, velocity=0)
         self.telemetry.enabled_substate = EnabledSubstate.MOVING_POINT_TO_POINT
         self.telemetry.flags_pt2pt_move_complete = 0
 
@@ -317,17 +309,13 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
             # Add jitter to the current position, for realism
             # and to exercise RotatorCommander filtering of jitter.
             curr_segment = self.rotator.path.at(curr_tai)
-            curr_pos = curr_segment.position + self.position_jitter * (
-                random.random() - 0.5
-            )
+            curr_pos = curr_segment.position + self.position_jitter * (random.random() - 0.5)
             if self.previous_pos is not None:
                 self.odometer += abs(curr_segment.position - self.previous_pos)
             self.previous_pos = curr_segment.position
             motor_current = curr_segment.acceleration * self.current_per_acceleration
             # Motor torque in output form: an integer in N-m/1e6
-            motor_torque_scaled = int(
-                curr_segment.acceleration * self.torque_per_acceleration * 1e6
-            )
+            motor_torque_scaled = int(curr_segment.acceleration * self.torque_per_acceleration * 1e6)
             curr_pos_counts = self.encoder_resolution * curr_pos
             cmd_target = self.rotator.target.at(curr_tai)
             in_position = False
@@ -357,27 +345,20 @@ class MockMTRotatorController(hexrotcomm.BaseMockController):
                 # Use config parameter `track_success_pos_threshold` to
                 # compute `in_position`, instead of `self.rotator.path.kind`,
                 # so that tracking success varies with the config parameter.
-                in_position = (
-                    abs(curr_pos - cmd_target.position)
-                    < self.config.track_success_pos_threshold
-                )
+                in_position = abs(curr_pos - cmd_target.position) < self.config.track_success_pos_threshold
             else:
                 self.telemetry.enabled_substate = EnabledSubstate.STATIONARY
             if (
                 self.telemetry.state == ControllerState.ENABLED
-                and self.telemetry.enabled_substate
-                == EnabledSubstate.SLEWING_OR_TRACKING
+                and self.telemetry.enabled_substate == EnabledSubstate.SLEWING_OR_TRACKING
             ):
-                self.telemetry.flags_slew_complete = (
-                    self.track_vel_cmd_seen and in_position
-                )
+                self.telemetry.flags_slew_complete = self.track_vel_cmd_seen and in_position
             else:
                 self.telemetry.flags_slew_complete = 0
                 self.track_vel_cmd_seen = False
             if (
                 self.telemetry.state == ControllerState.ENABLED
-                and self.telemetry.enabled_substate
-                == EnabledSubstate.MOVING_POINT_TO_POINT
+                and self.telemetry.enabled_substate == EnabledSubstate.MOVING_POINT_TO_POINT
                 and in_position
             ):
                 self.telemetry.flags_pt2pt_move_complete = 1

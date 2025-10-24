@@ -50,12 +50,8 @@ class RotatorCommander(salobj.CscCommander):
             index=0,
             enable=enable,
         )
-        self.help_dict["ramp"] = (
-            "start_position end_position speed  # track a path of constant"
-        )
-        self.help_dict["cosine"] = (
-            "center_position, amplitude, max_speed  # track one cycle of a cosine wave"
-        )
+        self.help_dict["ramp"] = "start_position end_position speed  # track a path of constant"
+        self.help_dict["cosine"] = "center_position, amplitude, max_speed  # track one cycle of a cosine wave"
         for command_to_ignore in ("abort", "setValue"):
             self.command_dict.pop(command_to_ignore, None)
 
@@ -126,9 +122,7 @@ class RotatorCommander(salobj.CscCommander):
             data=data, name="rotation", omit_fields=["odometer", "timestamp"], digits=2
         )
 
-    async def _ramp(
-        self, start_position: float, end_position: float, speed: float
-    ) -> None:
+    async def _ramp(self, start_position: float, end_position: float, speed: float) -> None:
         """Track a linear ramp.
 
         Parameters
@@ -172,9 +166,7 @@ class RotatorCommander(salobj.CscCommander):
             await self.remote.cmd_stop.start(timeout=STD_TIMEOUT)
             print("Ramp finished")
 
-    async def _cosine(
-        self, center_position: float, amplitude: float, max_speed: float
-    ) -> None:
+    async def _cosine(self, center_position: float, amplitude: float, max_speed: float) -> None:
         """Track one sine wave of specified amplitude and period.
 
         The range of motion is period - amplitude to period + amplitude,
@@ -192,13 +184,9 @@ class RotatorCommander(salobj.CscCommander):
         try:
             settings = self.remote.evt_configuration.get()
             if settings is None:
-                raise RuntimeError(
-                    "Must wait until configuration seen so we can check max velocity"
-                )
+                raise RuntimeError("Must wait until configuration seen so we can check max velocity")
             if abs(max_speed) > settings.velocityLimit:
-                raise ValueError(
-                    f"maximum speed {max_speed} > allowed {settings.velocityLimit}"
-                )
+                raise ValueError(f"maximum speed {max_speed} > allowed {settings.velocityLimit}")
             cosine_generator = simactuators.CosineGenerator(
                 center_positions=[center_position],
                 amplitudes=[amplitude],
