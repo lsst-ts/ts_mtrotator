@@ -62,7 +62,6 @@ class VibrationDetector:
         threshold: float,
         dt: float = 0.05,
     ) -> None:
-
         # Queue of the data.
         self._queue: asyncio.Queue = asyncio.Queue(maxsize=int(period / dt))
 
@@ -156,9 +155,7 @@ class VibrationDetector:
         self._current_times = 0
         self._vibration_frequencies.clear()
 
-    def _evaluate_vibration_frequency(
-        self, data: numpy.typing.NDArray[np.float64]
-    ) -> float:
+    def _evaluate_vibration_frequency(self, data: numpy.typing.NDArray[np.float64]) -> float:
         """Evaluate the vibration frequency in the detection range.
 
         Parameters
