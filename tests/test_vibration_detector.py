@@ -30,7 +30,6 @@ class VibrationDetectorTestCase(unittest.TestCase):
     """Test the vibration detector class."""
 
     def setUp(self) -> None:
-
         self.detector = VibrationDetector(
             15.0,
             4,
@@ -40,7 +39,6 @@ class VibrationDetectorTestCase(unittest.TestCase):
         )
 
     def test_put_data(self) -> None:
-
         # First data
         self.assertFalse(self.detector.put_data(1.0, 0.3))
         self.assertEqual(self.detector._queue.qsize(), 1)
@@ -59,7 +57,6 @@ class VibrationDetectorTestCase(unittest.TestCase):
         self.assertEqual(self.detector._queue.qsize(), self.detector._queue.maxsize)
 
     def test_clear_vibration_frequencies(self) -> None:
-
         self.detector._current_times = 1
         self.detector._vibration_frequencies.add(0.1)
 
@@ -69,34 +66,27 @@ class VibrationDetectorTestCase(unittest.TestCase):
         self.assertEqual(len(self.detector._vibration_frequencies), 0)
 
     def test_evaluate_vibration_frequency(self) -> None:
-
         # No vibration
         data_no_vibration = np.zeros(self.detector._queue.maxsize)
 
-        self.assertEqual(
-            self.detector._evaluate_vibration_frequency(data_no_vibration), 0.0
-        )
+        self.assertEqual(self.detector._evaluate_vibration_frequency(data_no_vibration), 0.0)
 
         # Vibration
         amplitude = 0.0001
         frequency = 0.4
         data_vibration = self._prepare_vibration_data(amplitude, frequency)[0]
 
-        self.assertEqual(
-            self.detector._evaluate_vibration_frequency(data_vibration), frequency
-        )
+        self.assertEqual(self.detector._evaluate_vibration_frequency(data_vibration), frequency)
 
     def _prepare_vibration_data(
         self, amplitude: float, frequency: float
     ) -> tuple[numpy.typing.NDArray[np.float64], numpy.typing.NDArray[np.float64]]:
-
         times = np.linspace(0.0, 15.0, num=self.detector._queue.maxsize, endpoint=False)
         data = amplitude * np.sin(2.0 * np.pi * frequency * times)
 
         return data, times
 
     def test_check_vibration_frequency(self) -> None:
-
         # Prepare the data
         amplitude = 0.0001
         frequency = 0.4

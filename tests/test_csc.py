@@ -108,18 +108,12 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         slop = 1e-6
 
         for _ in range(nskip + 1):
-            rotation_data = await self.remote.tel_rotation.next(
-                flush=True, timeout=STD_TIMEOUT
-            )
+            rotation_data = await self.remote.tel_rotation.next(flush=True, timeout=STD_TIMEOUT)
         self.prev_odometer = rotation_data.odometer
 
         for _ in range(nskip + 1):
-            motors_data = await self.remote.tel_motors.next(
-                flush=True, timeout=STD_TIMEOUT
-            )
-        acceleration = self.csc.mock_ctrl.rotator.path.at(
-            motors_data.private_sndStamp
-        ).acceleration
+            motors_data = await self.remote.tel_motors.next(flush=True, timeout=STD_TIMEOUT)
+        acceleration = self.csc.mock_ctrl.rotator.path.at(motors_data.private_sndStamp).acceleration
         self.log.debug(f"current={motors_data.current[0]:0.8f}")
         self.log.debug(f"torque={motors_data.torque[0]:0.8f}")
 
@@ -151,30 +145,19 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             f"acc={rotation_data.demandAcceleration:0.8f}; "
             f"delta={abs(rotation_data.demandAcceleration - path_segment.acceleration):0.8f}"
         )
-        self.assertAlmostEqual(
-            rotation_data.demandPosition, path_segment.position, delta=slop
-        )
-        self.assertAlmostEqual(
-            rotation_data.demandVelocity, path_segment.velocity, delta=slop
-        )
-        self.assertAlmostEqual(
-            rotation_data.demandAcceleration, path_segment.acceleration, delta=slop
-        )
+        self.assertAlmostEqual(rotation_data.demandPosition, path_segment.position, delta=slop)
+        self.assertAlmostEqual(rotation_data.demandVelocity, path_segment.velocity, delta=slop)
+        self.assertAlmostEqual(rotation_data.demandAcceleration, path_segment.acceleration, delta=slop)
         # actualPosition has jitter but actualVelocity does not.
         self.assertAlmostEqual(
             rotation_data.actualPosition,
             path_segment.position,
             delta=slop + self.csc.mock_ctrl.position_jitter,
         )
-        self.assertAlmostEqual(
-            rotation_data.actualVelocity, path_segment.velocity, delta=slop
-        )
+        self.assertAlmostEqual(rotation_data.actualVelocity, path_segment.velocity, delta=slop)
 
         if self.prev_odometer is not None:
-            self.log.debug(
-                f"odometer={rotation_data.odometer:0.8f}; "
-                f"prev_odometer={self.prev_odometer:0.8f}"
-            )
+            self.log.debug(f"odometer={rotation_data.odometer:0.8f}; prev_odometer={self.prev_odometer:0.8f}")
             self.assertGreaterEqual(rotation_data.odometer, self.prev_odometer)
 
     @contextlib.asynccontextmanager
@@ -234,14 +217,19 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         else:
             modified_initial_state = initial_state
 
-        async with super().make_csc(
-            initial_state=modified_initial_state,
-            config_dir=config_dir,
-            simulation_mode=simulation_mode,
-            log_level=log_level,
-            timeout=timeout,
-            **kwargs,
-        ), salobj.Controller(name="MTMount") as self.mtmount_controller:
+        async with (
+            super().make_csc(
+                initial_state=modified_initial_state,
+                config_dir=config_dir,
+                simulation_mode=simulation_mode,
+                log_level=log_level,
+                timeout=timeout,
+                **kwargs,
+            ),
+            salobj.Controller(name="MTMount") as self.mtmount_controller,
+        ):
+            await self.mtmount_controller.evt_cameraCableWrapFollowing.set_write(enabled=True)
+
             if run_mock_ccw:
                 self.mock_ccw_task = asyncio.create_task(self.mock_ccw_loop())
                 await asyncio.sleep(WAIT_FOR_CCW_DELAY)
@@ -276,9 +264,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             transient_error_persistency = 2
             transient_error_occurrency = 0
             while self.enable_mock_ccw_telemetry:
-                rotation_data = await self.remote.tel_rotation.next(
-                    flush=True, timeout=STD_TIMEOUT
-                )
+                rotation_data = await self.remote.tel_rotation.next(flush=True, timeout=STD_TIMEOUT)
 
                 ccw_tai = utils.current_tai()
                 dt = ccw_tai - rotation_data.timestamp
@@ -319,16 +305,47 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             cmdline_args=["--simulate"],
         )
 
+    async def test_is_camera_cable_wrap_following(self) -> None:
+        """Test the is_camera_cable_wrap_following method."""
+        async with self.make_csc(initial_state=salobj.State.DISABLED):
+            # Make sure the CCW is following in the unit tests by default
+            self.assertTrue(self.csc.is_camera_cable_wrap_following())
+
+            # Test the CCW is not following
+            self.csc._is_ccw_following = False
+            self.assertFalse(self.csc.is_camera_cable_wrap_following())
+
+            # Test the bypass of CCW
+            self.csc._bypass_ccw = True
+            self.assertTrue(self.csc.is_camera_cable_wrap_following())
+
     async def test_enable_no_ccw_telemetry(self) -> None:
         """Test that it is not possible to enable the CSC if it
         is not receiving MTMount cameraCableWrap telemetry.
         """
-        async with self.make_csc(
-            initial_state=salobj.State.DISABLED, run_mock_ccw=False
-        ):
+        async with self.make_csc(initial_state=salobj.State.DISABLED, run_mock_ccw=False):
             with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED):
                 await self.remote.cmd_enable.start(timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.DISABLED)
+
+    async def test_ccw_is_not_following(self) -> None:
+        """Test that the CSC will fault if camera cable wrap is not following
+        in the tracking."""
+        async with self.make_csc(initial_state=salobj.State.ENABLED):
+            await self.assert_next_summary_state(salobj.State.ENABLED)
+            await self.assert_next_sample(topic=self.remote.evt_errorCode, errorCode=0)
+
+            await self.remote.cmd_trackStart.start(timeout=STD_TIMEOUT)
+            self.csc._is_ccw_following = False
+
+            await self.assert_next_summary_state(salobj.State.FAULT)
+            await self.assert_next_sample(
+                topic=self.remote.evt_errorCode,
+                errorCode=ErrorCode.CCW_FOLLOWING_ERROR,
+            )
+            await self.assert_next_sample(
+                topic=self.remote.evt_errorCode, errorCode=ErrorCode.CONTROLLER_FAULT
+            )
 
     async def test_missing_ccw_telemetry(self) -> None:
         """Test that the CSC will fault if camera cable wrap telemetry
@@ -345,9 +362,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # Wait for a few rotator telemetry messages,
             # which in turn trigger CCW telemetry.
             delay = self.csc.mock_ctrl.telemetry_interval * 5
-            self.log.debug(
-                f"Sleep for {delay} seconds, then cancel the mock CCW output"
-            )
+            self.log.debug(f"Sleep for {delay} seconds, then cancel the mock CCW output")
             await asyncio.sleep(delay)
             assert self.csc.summary_state == salobj.State.ENABLED
 
@@ -366,15 +381,9 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
 
             # Test that ccwFollowingError is still output in FAULT state
             self.mock_ccw_task = asyncio.create_task(self.mock_ccw_loop())
-            data = await self.remote.tel_ccwFollowingError.next(
-                flush=True, timeout=STD_TIMEOUT
-            )
-            self.assertAlmostEqual(
-                data.positionError, 0, delta=STD_FOLLOWING_DELTA_POSITION
-            )
-            self.assertAlmostEqual(
-                data.velocityError, 0, delta=STD_FOLLOWING_DELTA_VELOCITY
-            )
+            data = await self.remote.tel_ccwFollowingError.next(flush=True, timeout=STD_TIMEOUT)
+            self.assertAlmostEqual(data.positionError, 0, delta=STD_FOLLOWING_DELTA_POSITION)
+            self.assertAlmostEqual(data.velocityError, 0, delta=STD_FOLLOWING_DELTA_VELOCITY)
 
     async def test_excessive_ccw_following_error(self) -> None:
         async with self.make_csc(initial_state=salobj.State.ENABLED):
@@ -404,9 +413,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
 
             # Zero the following error and re-enable the CSC.
             self.ccw_following_error = 0
-            states = await salobj.set_summary_state(
-                self.remote, state=salobj.State.ENABLED
-            )
+            states = await salobj.set_summary_state(self.remote, state=salobj.State.ENABLED)
             for state in states[1:]:
                 await self.assert_next_summary_state(state)
             await self.assert_next_ccw_following_error()
@@ -440,9 +447,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # Increase the following error for a single CCW telemetry message;
             # the CSC should not be disabled
             self.csc.config.num_ccw_following_errors = 10
-            self.ccw_transient_following_error = (
-                self.csc.config.max_ccw_following_error + 0.1
-            )
+            self.ccw_transient_following_error = self.csc.config.max_ccw_following_error + 0.1
             await asyncio.sleep(WAIT_FOR_CCW_DELAY)
             assert self.csc.summary_state == salobj.State.ENABLED
 
@@ -451,13 +456,9 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # Set the # of fails to 1 and try again;
             # this time a single transient should cause failure.
             self.csc.config.num_ccw_following_errors = 1
-            self.ccw_transient_following_error = (
-                self.csc.config.max_ccw_following_error + 0.1
-            )
+            self.ccw_transient_following_error = self.csc.config.max_ccw_following_error + 0.1
             print("Waiting for CSC to go to FAULT.")
-            await self.assert_next_summary_state(
-                salobj.State.FAULT, flush=False, timeout=STD_TIMEOUT
-            )
+            await self.assert_next_summary_state(salobj.State.FAULT, flush=False, timeout=STD_TIMEOUT)
 
             await self.assert_next_sample(
                 topic=self.remote.evt_errorCode, errorCode=ErrorCode.CCW_FOLLOWING_ERROR
@@ -549,7 +550,6 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
 
     async def test_begin_disable(self) -> None:
         async with self.make_csc(initial_state=salobj.State.ENABLED):
-
             for event in ("summaryState", "controllerState"):
                 getattr(self.remote, f"evt_{event}").flush()
 
@@ -567,9 +567,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
 
     async def test_clock_offset(self) -> None:
         async with self.make_csc(initial_state=salobj.State.ENABLED):
-            data = await self.remote.evt_clockOffset.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            data = await self.remote.evt_clockOffset.next(flush=False, timeout=STD_TIMEOUT)
             private_sndStamp0 = data.private_sndStamp
             assert data.offset == pytest.approx(0, abs=0.2)
             data = await self.remote.evt_clockOffset.next(
@@ -583,37 +581,27 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         """Test the configureJerk command."""
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             # Test the good value
-            await self.remote.cmd_configureJerk.set_start(
-                jlimit=1.0, timeout=STD_TIMEOUT
-            )
+            await self.remote.cmd_configureJerk.set_start(jlimit=1.0, timeout=STD_TIMEOUT)
 
             # Test the bad value
             for bad_limit in (0, -1):
                 with self.subTest(bad_limit=bad_limit):
                     with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED):
-                        await self.remote.cmd_configureJerk.set_start(
-                            jlimit=bad_limit, timeout=STD_TIMEOUT
-                        )
+                        await self.remote.cmd_configureJerk.set_start(jlimit=bad_limit, timeout=STD_TIMEOUT)
 
     async def test_configure_acceleration(self) -> None:
         """Test the configureAcceleration command."""
         async with self.make_csc(initial_state=salobj.State.ENABLED):
-            data = await self.remote.evt_configuration.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            data = await self.remote.evt_configuration.next(flush=False, timeout=STD_TIMEOUT)
             initial_limit = data.accelerationLimit
             self.log.debug("initial_limit=", initial_limit)
 
             self.remote.evt_configuration.flush()
 
             new_limit = initial_limit - 0.1
-            await self.remote.cmd_configureAcceleration.set_start(
-                alimit=new_limit, timeout=STD_TIMEOUT
-            )
+            await self.remote.cmd_configureAcceleration.set_start(alimit=new_limit, timeout=STD_TIMEOUT)
 
-            data = await self.remote.evt_configuration.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            data = await self.remote.evt_configuration.next(flush=False, timeout=STD_TIMEOUT)
 
             self.assertAlmostEqual(data.accelerationLimit, new_limit)
 
@@ -627,23 +615,17 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
     async def test_configure_velocity(self) -> None:
         """Test the configureVelocity command."""
         async with self.make_csc(initial_state=salobj.State.ENABLED):
-            data = await self.remote.evt_configuration.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            data = await self.remote.evt_configuration.next(flush=False, timeout=STD_TIMEOUT)
             initial_limit = data.velocityLimit
 
             self.remote.evt_configuration.flush()
 
             new_limit = initial_limit - 0.1
-            await self.remote.cmd_configureVelocity.set_start(
-                vlimit=new_limit, timeout=STD_TIMEOUT
-            )
+            await self.remote.cmd_configureVelocity.set_start(vlimit=new_limit, timeout=STD_TIMEOUT)
 
             await asyncio.sleep(1.0)
 
-            data = await self.remote.evt_configuration.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            data = await self.remote.evt_configuration.next(flush=False, timeout=STD_TIMEOUT)
             self.assertAlmostEqual(data.velocityLimit, new_limit)
 
             for bad_vlimit in (0, -1, mtrotator.MAX_VEL_LIMIT + 0.001):
@@ -657,9 +639,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         """Test the configureEmergencyAcceleration command."""
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             # Test the good value
-            data = await self.remote.evt_configuration.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            data = await self.remote.evt_configuration.next(flush=False, timeout=STD_TIMEOUT)
             initial_limit = data.emergencyAccelerationLimit
 
             self.remote.evt_configuration.flush()
@@ -671,9 +651,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
 
             await asyncio.sleep(1.0)
 
-            data = await self.remote.evt_configuration.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            data = await self.remote.evt_configuration.next(flush=False, timeout=STD_TIMEOUT)
             self.assertAlmostEqual(data.emergencyAccelerationLimit, new_limit)
 
             # Test the bad value
@@ -688,23 +666,17 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         """Test the configureEmergencyJerk command."""
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             # Test the good value
-            data = await self.remote.evt_configuration.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            data = await self.remote.evt_configuration.next(flush=False, timeout=STD_TIMEOUT)
             initial_limit = data.emergencyJerkLimit
 
             self.remote.evt_configuration.flush()
 
             new_limit = initial_limit + 0.1
-            await self.remote.cmd_configureEmergencyJerk.set_start(
-                jlimit=new_limit, timeout=STD_TIMEOUT
-            )
+            await self.remote.cmd_configureEmergencyJerk.set_start(jlimit=new_limit, timeout=STD_TIMEOUT)
 
             await asyncio.sleep(1.0)
 
-            data = await self.remote.evt_configuration.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            data = await self.remote.evt_configuration.next(flush=False, timeout=STD_TIMEOUT)
             self.assertAlmostEqual(data.emergencyJerkLimit, new_limit)
 
             # Test the bad value
@@ -734,9 +706,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             )
             self.assertFalse(data.inPosition)
             t0 = utils.current_tai()
-            await self.remote.cmd_move.set_start(
-                position=destination, timeout=STD_TIMEOUT
-            )
+            await self.remote.cmd_move.set_start(position=destination, timeout=STD_TIMEOUT)
             data = await self.assert_next_sample(
                 topic=self.remote.evt_target, flush=False, timeout=STD_TIMEOUT
             )
@@ -755,9 +725,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.MOVING_POINT_TO_POINT,
             )
-            data = await self.remote.evt_inPosition.next(
-                flush=False, timeout=STD_TIMEOUT + est_move_duration
-            )
+            data = await self.remote.evt_inPosition.next(flush=False, timeout=STD_TIMEOUT + est_move_duration)
             self.assertTrue(data.inPosition)
             self.log.debug(f"Move duration: {utils.current_tai() - t0:0.2f} seconds")
             await self.assert_next_sample(
@@ -784,16 +752,10 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             )
             data = await self.remote.tel_rotation.next(flush=True, timeout=STD_TIMEOUT)
             self.assertAlmostEqual(data.demandPosition, 0)
-            self.assertAlmostEqual(
-                data.actualPosition, 0, delta=self.csc.mock_ctrl.position_jitter
-            )
-            data = await self.remote.evt_inPosition.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            self.assertAlmostEqual(data.actualPosition, 0, delta=self.csc.mock_ctrl.position_jitter)
+            data = await self.remote.evt_inPosition.next(flush=False, timeout=STD_TIMEOUT)
             self.assertFalse(data.inPosition)
-            await self.remote.cmd_move.set_start(
-                position=destination, timeout=STD_TIMEOUT
-            )
+            await self.remote.cmd_move.set_start(position=destination, timeout=STD_TIMEOUT)
             await self.assert_next_sample(
                 topic=self.remote.evt_controllerState,
                 controllerState=ControllerState.ENABLED,
@@ -828,12 +790,8 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 topic=self.remote.tel_rotation, flush=True, timeout=STD_TIMEOUT
             )
             self.assertAlmostEqual(data.demandPosition, 0)
-            self.assertAlmostEqual(
-                data.actualPosition, 0, delta=self.csc.mock_ctrl.position_jitter
-            )
-            data = await self.assert_next_sample(
-                self.remote.evt_inPosition, flush=False, timeout=STD_TIMEOUT
-            )
+            self.assertAlmostEqual(data.actualPosition, 0, delta=self.csc.mock_ctrl.position_jitter)
+            data = await self.assert_next_sample(self.remote.evt_inPosition, flush=False, timeout=STD_TIMEOUT)
             self.assertFalse(data.inPosition)
             await self.remote.cmd_trackStart.start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(
@@ -849,9 +807,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                     self.fail("Slew did not end in time")
                 dt = tai - slew_start_tai
                 pos = pos0 + vel * dt
-                await self.remote.cmd_track.set_start(
-                    angle=pos, velocity=vel, tai=tai, timeout=STD_TIMEOUT
-                )
+                await self.remote.cmd_track.set_start(angle=pos, velocity=vel, tai=tai, timeout=STD_TIMEOUT)
                 data = await self.assert_next_sample(
                     topic=self.remote.evt_target, flush=False, timeout=STD_TIMEOUT
                 )
@@ -867,9 +823,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                     break
             # Read the inPosition event from the queue, so we can await
             # the expected false value after stopping tracking.
-            await self.assert_next_sample(
-                topic=self.remote.evt_inPosition, inPosition=True
-            )
+            await self.assert_next_sample(topic=self.remote.evt_inPosition, inPosition=True)
 
             await self.remote.cmd_stop.start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(
@@ -877,9 +831,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.STATIONARY,
             )
-            data = await self.remote.evt_inPosition.next(
-                flush=False, timeout=STD_TIMEOUT + est_slew_duration
-            )
+            data = await self.remote.evt_inPosition.next(flush=False, timeout=STD_TIMEOUT + est_slew_duration)
             self.assertFalse(data.inPosition)
 
     async def test_track_bad_values(self) -> None:
@@ -894,9 +846,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.STATIONARY,
             )
-            settings = await self.remote.evt_configuration.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            settings = await self.remote.evt_configuration.next(flush=False, timeout=STD_TIMEOUT)
             await self.remote.cmd_trackStart.start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(
                 topic=self.remote.evt_controllerState,
@@ -949,12 +899,8 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             )
             data = await self.remote.tel_rotation.next(flush=True, timeout=STD_TIMEOUT)
             self.assertAlmostEqual(data.demandPosition, 0)
-            self.assertAlmostEqual(
-                data.actualPosition, 0, delta=self.csc.mock_ctrl.position_jitter
-            )
-            data = await self.remote.evt_inPosition.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            self.assertAlmostEqual(data.actualPosition, 0, delta=self.csc.mock_ctrl.position_jitter)
+            data = await self.remote.evt_inPosition.next(flush=False, timeout=STD_TIMEOUT)
             self.assertFalse(data.inPosition)
             await self.remote.cmd_trackStart.start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(
@@ -970,9 +916,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
 
             # Wait a bit longer than usual to allow the tracking timer
             # to expire.
-            await self.assert_next_summary_state(
-                salobj.State.FAULT, timeout=STD_TIMEOUT + 1
-            )
+            await self.assert_next_summary_state(salobj.State.FAULT, timeout=STD_TIMEOUT + 1)
             await self.assert_next_sample(
                 topic=self.remote.evt_controllerState,
                 controllerState=ControllerState.FAULT,
@@ -997,17 +941,11 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.STATIONARY,
             )
-            await self.assert_next_sample(
-                topic=self.remote.evt_tracking, tracking=False, noNewCommand=False
-            )
+            await self.assert_next_sample(topic=self.remote.evt_tracking, tracking=False, noNewCommand=False)
             data = await self.remote.tel_rotation.next(flush=True, timeout=STD_TIMEOUT)
             self.assertAlmostEqual(data.demandPosition, 0)
-            self.assertAlmostEqual(
-                data.actualPosition, 0, delta=self.csc.mock_ctrl.position_jitter
-            )
-            data = await self.remote.evt_inPosition.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            self.assertAlmostEqual(data.actualPosition, 0, delta=self.csc.mock_ctrl.position_jitter)
+            data = await self.remote.evt_inPosition.next(flush=False, timeout=STD_TIMEOUT)
             self.assertFalse(data.inPosition)
 
             self.remote.evt_errorCode.flush()
@@ -1017,9 +955,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             # Immediately send a track commands (not giving the CSC time to see
             # the changed controller state), as explained in the doc string.
             curr_tai = utils.current_tai()
-            await self.remote.cmd_track.set_start(
-                angle=0, velocity=0, tai=curr_tai, timeout=STD_TIMEOUT
-            )
+            await self.remote.cmd_track.set_start(angle=0, velocity=0, tai=curr_tai, timeout=STD_TIMEOUT)
 
             # Now make sure the trackStart command did send the controller
             # into the state SLEWING_OR_TRACKING
@@ -1028,23 +964,17 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
                 controllerState=ControllerState.ENABLED,
                 enabledSubstate=EnabledSubstate.SLEWING_OR_TRACKING,
             )
-            await self.assert_next_sample(
-                topic=self.remote.evt_tracking, tracking=True, noNewCommand=False
-            )
+            await self.assert_next_sample(topic=self.remote.evt_tracking, tracking=True, noNewCommand=False)
 
             # Wait for the lack of track commands to send the CSC into FAULT;
             # wait a bit longer than usual to allow the tracking timer
             # to expire.
-            await self.assert_next_summary_state(
-                salobj.State.FAULT, timeout=STD_TIMEOUT + 1
-            )
+            await self.assert_next_summary_state(salobj.State.FAULT, timeout=STD_TIMEOUT + 1)
             await self.assert_next_sample(
                 topic=self.remote.evt_controllerState,
                 controllerState=ControllerState.FAULT,
             )
-            await self.assert_next_sample(
-                topic=self.remote.evt_tracking, tracking=False, noNewCommand=True
-            )
+            await self.assert_next_sample(topic=self.remote.evt_tracking, tracking=False, noNewCommand=True)
 
             await self.assert_next_sample(
                 topic=self.remote.evt_errorCode,
@@ -1176,9 +1106,7 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
         and without argument defaults.
         """
         while True:
-            data = await self.remote.tel_ccwFollowingError.next(
-                flush=True, timeout=STD_TIMEOUT
-            )
+            data = await self.remote.tel_ccwFollowingError.next(flush=True, timeout=STD_TIMEOUT)
             # Give enough slop for the timestamp to handle clock jitter
             # on Docker on macOS.
             self.assertAlmostEqual(data.timestamp, utils.current_tai(), delta=0.2)

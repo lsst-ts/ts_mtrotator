@@ -21,6 +21,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """An example of how to run a CSC"""
+
 from lsst.ts.mtrotator import run_mtrotator
 
 run_mtrotator()

@@ -137,6 +137,10 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         self._is_motion_locked = False
 
+        # Do not use this directly. Use self.is_camera_cable_wrap_following()
+        # instead.
+        self._is_ccw_following = False
+
         super().__init__(
             name="MTRotator",
             index=0,
@@ -150,6 +154,36 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             simulation_mode=simulation_mode,
         )
         self.mtmount_remote = salobj.Remote(domain=self.domain, name="MTMount")
+
+        # Set the callback function of MTMount
+        self.mtmount_remote.evt_cameraCableWrapFollowing.callback = (
+            self.set_mtmount_camera_cable_wrap_following_callback
+        )
+
+    async def set_mtmount_camera_cable_wrap_following_callback(self, data: salobj.BaseMsgType) -> None:
+        """Callback function to set the camera cable wrap (CCW) following
+        status.
+
+        Parameters
+        ----------
+        data : `object`
+            Data of the SAL message.
+        """
+
+        self._is_ccw_following = bool(data.enabled)
+        self.log.info(f"Receive new CCW following status: {self._is_ccw_following}")
+
+    def is_camera_cable_wrap_following(self) -> bool:
+        """Camera cable wrap (CCW) is following or not. If the check of CCW is
+        bypassed, then always return True.
+
+        Returns
+        -------
+        `bool`
+            True if CCW is following. False otherwise.
+        """
+
+        return True if self._bypass_ccw else self._is_ccw_following
 
     async def start(self) -> None:
         await super().start()
@@ -167,6 +201,22 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         from the low-level controller.
         """
         try:
+            # Fail the rotator if the camera cable wrap is not following in
+            # the tracking.
+            if (
+                self.client.telemetry.enabled_substate  # type: ignore[union-attr]
+                == EnabledSubstate.SLEWING_OR_TRACKING
+            ) and (not self.is_camera_cable_wrap_following()):
+                self.log.error(
+                    "Camera cable wrap is not following in the tracking. Please check the MTMount CSC."
+                )
+
+                await self.evt_errorCode.set_write(
+                    errorCode=ErrorCode.CCW_FOLLOWING_ERROR,
+                    errorReport="Camera cable wrap is not following",
+                )
+                await self.command_llv_fault()
+
             # Get camera cable wrap telemetry and check its age.
             try:
                 ccw_data = await self.mtmount_remote.tel_cameraCableWrap.next(
@@ -193,8 +243,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             dt = rot_tai - ccw_data.timestamp
             if abs(dt) > MAX_CCW_TELEMETRY_AGE:
                 err_msg = (
-                    "Camera cable wrap telemetry is too old: "
-                    f"dt={dt}; abs(dt) > {MAX_CCW_TELEMETRY_AGE}"
+                    f"Camera cable wrap telemetry is too old: dt={dt}; abs(dt) > {MAX_CCW_TELEMETRY_AGE}"
                 )
                 if self.summary_state == salobj.State.ENABLED:
                     self.log.error(err_msg)
@@ -227,10 +276,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                     return
 
                 self._num_ccw_following_errors += 1
-                if (
-                    self._num_ccw_following_errors
-                    >= self.config.num_ccw_following_errors
-                ):
+                if self._num_ccw_following_errors >= self.config.num_ccw_following_errors:
                     self.log.error(
                         f"Camera cable wrap not following closely enough: "
                         f"error # {self._num_ccw_following_errors} = {following_error} "
@@ -313,6 +359,15 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # accumulating the count and otherwise it makes no difference.
         self._num_ccw_following_errors = 0
 
+        # Deal with the condition that the MTMount CSC has already enabled.
+        # Under this condition, maybe the
+        # self.set_mount_camera_cable_wrap_following_callback() will not be
+        # triggered. Therefore, take the data from the cache.
+        data = self.mtmount_remote.evt_cameraCableWrapFollowing.get()
+        self._is_ccw_following = False if (data is None) else bool(data.enabled)
+
+        self.log.info(f"The CCW following status is {self._is_ccw_following}")
+
     async def do_configureJerk(self, data: salobj.BaseMsgType) -> None:
         """Configure the jerk limit.
 
@@ -339,18 +394,14 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         """Specify the acceleration limit."""
         self.assert_enabled_substate(EnabledSubstate.STATIONARY)
         if not 0 < data.alimit <= constants.MAX_ACCEL_LIMIT:
-            raise salobj.ExpectedError(
-                f"alimit={data.alimit} must be > 0 and <= {constants.MAX_ACCEL_LIMIT}"
-            )
+            raise salobj.ExpectedError(f"alimit={data.alimit} must be > 0 and <= {constants.MAX_ACCEL_LIMIT}")
         await self.run_command(code=enums.CommandCode.CONFIG_ACCEL, param1=data.alimit)
 
     async def do_configureVelocity(self, data: salobj.BaseMsgType) -> None:
         """Specify the velocity limit."""
         self.assert_enabled_substate(EnabledSubstate.STATIONARY)
         if not 0 < data.vlimit <= constants.MAX_VEL_LIMIT:
-            raise salobj.ExpectedError(
-                f"vlimit={data.vlimit} must be > 0 and <= {constants.MAX_VEL_LIMIT}"
-            )
+            raise salobj.ExpectedError(f"vlimit={data.vlimit} must be > 0 and <= {constants.MAX_VEL_LIMIT}")
         await self.run_command(code=enums.CommandCode.CONFIG_VEL, param1=data.vlimit)
 
     async def do_configureEmergencyAcceleration(self, data: salobj.BaseMsgType) -> None:
@@ -373,9 +424,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         if alimit <= 0.0:
             raise salobj.ExpectedError(f"Emergency {alimit=} must be > 0")
 
-        await self.run_command(
-            code=enums.CommandCode.CONFIG_ACCEL_EMERGENCY, param1=alimit
-        )
+        await self.run_command(code=enums.CommandCode.CONFIG_ACCEL_EMERGENCY, param1=alimit)
 
     async def do_configureEmergencyJerk(self, data: salobj.BaseMsgType) -> None:
         """Configure the emergency jerk limit.
@@ -397,9 +446,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         if jlimit <= 0.0:
             raise salobj.ExpectedError(f"Emergency {jlimit=} must be > 0")
 
-        await self.run_command(
-            code=enums.CommandCode.CONFIG_JERK_EMERGENCY, param1=jlimit
-        )
+        await self.run_command(code=enums.CommandCode.CONFIG_JERK_EMERGENCY, param1=jlimit)
 
     async def do_enable(self, data: salobj.BaseMsgType) -> None:
         self.assert_summary_state(salobj.State.DISABLED)
@@ -419,9 +466,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
     async def do_fault(self, data: salobj.BaseMsgType) -> None:
         if self.summary_state != salobj.State.ENABLED:
             raise salobj.ExpectedError("Not enabled")
-        self.log.warning(
-            "fault command issued; sending low-level controller to FAULT state"
-        )
+        self.log.warning("fault command issued; sending low-level controller to FAULT state")
         await self.command_llv_fault()
 
     async def do_move(self, data: salobj.BaseMsgType) -> None:
@@ -433,22 +478,18 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         self.assert_enabled_substate(EnabledSubstate.STATIONARY)
 
+        self.assert_camera_cable_wrap_is_following()
+
         # Workaround the mypy check
         assert self.client is not None
 
-        if (
-            not self.client.config.lower_pos_limit
-            <= data.position
-            <= self.client.config.upper_pos_limit
-        ):
+        if not self.client.config.lower_pos_limit <= data.position <= self.client.config.upper_pos_limit:
             raise salobj.ExpectedError(
                 f"position {data.position} not in range "
                 f"[{self.client.config.lower_pos_limit}, "
                 f"{self.client.config.upper_pos_limit}]"
             )
-        cmd1 = self.make_command(
-            code=enums.CommandCode.POSITION_SET, param1=data.position
-        )
+        cmd1 = self.make_command(code=enums.CommandCode.POSITION_SET, param1=data.position)
         cmd2 = self.make_command(
             code=enums.CommandCode.SET_ENABLED_SUBSTATE,
             param1=enums.SetEnabledSubstateParam.MOVE_POINT_TO_POINT,
@@ -475,6 +516,18 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         if self._is_motion_locked:
             raise AssertionError("Motion is locked")
 
+    def assert_camera_cable_wrap_is_following(self) -> None:
+        """Assert the camera cable wrap is following.
+
+        Raises
+        ------
+        `AssertionError`
+            When the camera cable wrap is not following.
+        """
+
+        if not self.is_camera_cable_wrap_following():
+            raise AssertionError("Camera cable wrap is not following. Enable this in MTMount CSC.")
+
     async def do_stop(self, data: salobj.BaseMsgType) -> None:
         """Halt tracking or any other motion."""
 
@@ -498,10 +551,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # Workaround the mypy check
         assert self.client is not None
 
-        if (
-            self.client.telemetry.enabled_substate
-            != EnabledSubstate.SLEWING_OR_TRACKING
-        ):
+        if self.client.telemetry.enabled_substate != EnabledSubstate.SLEWING_OR_TRACKING:
             if self._tracking_started_telemetry_counter <= 0:
                 raise salobj.ExpectedError(
                     "Low-level controller in substate "
@@ -510,11 +560,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
                 )
         dt = data.tai - utils.current_tai()
         curr_pos = data.angle + data.velocity * dt
-        if (
-            not self.client.config.lower_pos_limit
-            <= curr_pos
-            <= self.client.config.upper_pos_limit
-        ):
+        if not self.client.config.lower_pos_limit <= curr_pos <= self.client.config.upper_pos_limit:
             raise salobj.ExpectedError(
                 f"current position {curr_pos} not in range "
                 f"[{self.client.config.lower_pos_limit}, "
@@ -522,8 +568,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             )
         if not abs(data.velocity) <= self.client.config.velocity_limit:
             raise salobj.ExpectedError(
-                f"abs(velocity={data.velocity}) > "
-                f"[{self.client.config.velocity_limit}"
+                f"abs(velocity={data.velocity}) > [{self.client.config.velocity_limit}"
             )
         await self.run_command(
             code=enums.CommandCode.TRACK_VEL_CMD,
@@ -549,6 +594,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             code=enums.CommandCode.SET_ENABLED_SUBSTATE,
             param1=enums.SetEnabledSubstateParam.TRACK,
         )
+
+        self.assert_camera_cable_wrap_is_following()
+
         self._tracking_started_telemetry_counter = 2
 
     async def do_lockMotion(self, data: salobj.BaseMsgType) -> None:
@@ -590,9 +638,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
             max_attempt = 10
             attempt = 0
-            while (
-                self.client.telemetry.enabled_substate != EnabledSubstate.STATIONARY
-            ) and (attempt < max_attempt):
+            while (self.client.telemetry.enabled_substate != EnabledSubstate.STATIONARY) and (
+                attempt < max_attempt
+            ):
                 await asyncio.sleep(1.0)
                 attempt += 1
 
@@ -691,9 +739,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         finally:
             self._faulting = False
 
-    async def telemetry_callback(
-        self, client: hexrotcomm.CommandTelemetryClient
-    ) -> None:
+    async def telemetry_callback(self, client: hexrotcomm.CommandTelemetryClient) -> None:
         """Called when the TCP/IP controller outputs telemetry.
 
         Parameters
@@ -706,9 +752,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         if self.next_clock_offset_task.done():
             clock_offset = tai_unix - utils.current_tai()
             await self.evt_clockOffset.set_write(offset=clock_offset)
-            self.next_clock_offset_task = asyncio.create_task(
-                asyncio.sleep(CLOCK_OFFSET_EVENT_INTERVAL)
-            )
+            self.next_clock_offset_task = asyncio.create_task(asyncio.sleep(CLOCK_OFFSET_EVENT_INTERVAL))
 
         if self._tracking_started_telemetry_counter > 0:
             self._tracking_started_telemetry_counter -= 1
@@ -731,11 +775,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             demandVelocity=client.telemetry.demand_vel,
             demandAcceleration=client.telemetry.demand_accel,
             actualPosition=client.telemetry.current_pos,
-            actualVelocity=(
-                client.telemetry.current_vel_ch_a_fb
-                + client.telemetry.current_vel_ch_b_fb
-            )
-            / 2,
+            actualVelocity=(client.telemetry.current_vel_ch_a_fb + client.telemetry.current_vel_ch_b_fb) / 2,
             debugActualVelocityA=client.telemetry.current_vel_ch_a_fb,
             debugActualVelocityB=client.telemetry.current_vel_ch_b_fb,
             odometer=client.telemetry.rotator_odometer,
@@ -772,17 +812,11 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         )
 
         await self.evt_inPosition.set_write(
-            inPosition=bool(
-                client.telemetry.flags_move_success
-                or client.telemetry.flags_tracking_success
-            )
+            inPosition=bool(client.telemetry.flags_move_success or client.telemetry.flags_tracking_success)
         )
 
         await self.evt_commandableByDDS.set_write(
-            state=bool(
-                client.telemetry.application_status
-                & ApplicationStatus.DDS_COMMAND_SOURCE
-            ),
+            state=bool(client.telemetry.application_status & ApplicationStatus.DDS_COMMAND_SOURCE),
         )
 
         no_new_track_command = bool(client.telemetry.flags_no_new_track_cmd_error)
@@ -801,9 +835,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             noNewCommand=no_new_track_command,
         )
 
-        safety_interlock = (
-            client.telemetry.application_status & ApplicationStatus.SAFETY_INTERLOCK
-        )
+        safety_interlock = client.telemetry.application_status & ApplicationStatus.SAFETY_INTERLOCK
         await self.evt_interlock.set_write(engaged=safety_interlock)
 
         if (self.summary_state == salobj.State.FAULT) and safety_interlock:
@@ -816,9 +848,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # Check following error if enabled and if not already checking
         # following error (don't let these tasks build up).
         if self._check_ccw_following_error_task.done() and (not self._bypass_ccw):
-            self._check_ccw_following_error_task = asyncio.create_task(
-                self.check_ccw_following_error()
-            )
+            self._check_ccw_following_error_task = asyncio.create_task(self.check_ccw_following_error())
 
         # Put the current and demand positions to the vibration detector
         assert self._vibration_detector is not None
@@ -851,9 +881,7 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         )
 
     @classmethod
-    def add_kwargs_from_args(
-        cls, args: argparse.Namespace, kwargs: typing.Dict[str, typing.Any]
-    ) -> None:
+    def add_kwargs_from_args(cls, args: argparse.Namespace, kwargs: typing.Dict[str, typing.Any]) -> None:
         super(RotatorCsc, cls).add_kwargs_from_args(args, kwargs)
 
         kwargs["bypass_ccw"] = args.bypass_ccw
