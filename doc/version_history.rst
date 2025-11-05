@@ -6,6 +6,11 @@
 Version History
 ###############
 
+v1.3.1
+-------
+
+* Quick fix of ``RotatorCsc.do_trackStart()``.
+
 v1.3.0
 -------
 
