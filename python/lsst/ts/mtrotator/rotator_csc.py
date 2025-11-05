@@ -590,12 +590,13 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         self.assert_is_not_locked()
 
         self.assert_enabled_substate(EnabledSubstate.STATIONARY)
+
+        self.assert_camera_cable_wrap_is_following()
+
         await self.run_command(
             code=enums.CommandCode.SET_ENABLED_SUBSTATE,
             param1=enums.SetEnabledSubstateParam.TRACK,
         )
-
-        self.assert_camera_cable_wrap_is_following()
 
         self._tracking_started_telemetry_counter = 2
 
