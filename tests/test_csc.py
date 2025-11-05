@@ -228,6 +228,8 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             ),
             salobj.Controller(name="MTMount") as self.mtmount_controller,
         ):
+            await self.mtmount_controller.evt_cameraCableWrapFollowing.set_write(enabled=True)
+
             if run_mock_ccw:
                 self.mock_ccw_task = asyncio.create_task(self.mock_ccw_loop())
                 await asyncio.sleep(WAIT_FOR_CCW_DELAY)
@@ -303,6 +305,20 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             cmdline_args=["--simulate"],
         )
 
+    async def test_is_camera_cable_wrap_following(self) -> None:
+        """Test the is_camera_cable_wrap_following method."""
+        async with self.make_csc(initial_state=salobj.State.DISABLED):
+            # Make sure the CCW is following in the unit tests by default
+            self.assertTrue(self.csc.is_camera_cable_wrap_following())
+
+            # Test the CCW is not following
+            self.csc._is_ccw_following = False
+            self.assertFalse(self.csc.is_camera_cable_wrap_following())
+
+            # Test the bypass of CCW
+            self.csc._bypass_ccw = True
+            self.assertTrue(self.csc.is_camera_cable_wrap_following())
+
     async def test_enable_no_ccw_telemetry(self) -> None:
         """Test that it is not possible to enable the CSC if it
         is not receiving MTMount cameraCableWrap telemetry.
@@ -311,6 +327,25 @@ class TestRotatorCsc(hexrotcomm.BaseCscTestCase, unittest.IsolatedAsyncioTestCas
             with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED):
                 await self.remote.cmd_enable.start(timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.DISABLED)
+
+    async def test_ccw_is_not_following(self) -> None:
+        """Test that the CSC will fault if camera cable wrap is not following
+        in the tracking."""
+        async with self.make_csc(initial_state=salobj.State.ENABLED):
+            await self.assert_next_summary_state(salobj.State.ENABLED)
+            await self.assert_next_sample(topic=self.remote.evt_errorCode, errorCode=0)
+
+            await self.remote.cmd_trackStart.start(timeout=STD_TIMEOUT)
+            self.csc._is_ccw_following = False
+
+            await self.assert_next_summary_state(salobj.State.FAULT)
+            await self.assert_next_sample(
+                topic=self.remote.evt_errorCode,
+                errorCode=ErrorCode.CCW_FOLLOWING_ERROR,
+            )
+            await self.assert_next_sample(
+                topic=self.remote.evt_errorCode, errorCode=ErrorCode.CONTROLLER_FAULT
+            )
 
     async def test_missing_ccw_telemetry(self) -> None:
         """Test that the CSC will fault if camera cable wrap telemetry

@@ -137,6 +137,10 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         self._is_motion_locked = False
 
+        # Do not use this directly. Use self.is_camera_cable_wrap_following()
+        # instead.
+        self._is_ccw_following = False
+
         super().__init__(
             name="MTRotator",
             index=0,
@@ -150,6 +154,36 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             simulation_mode=simulation_mode,
         )
         self.mtmount_remote = salobj.Remote(domain=self.domain, name="MTMount")
+
+        # Set the callback function of MTMount
+        self.mtmount_remote.evt_cameraCableWrapFollowing.callback = (
+            self.set_mtmount_camera_cable_wrap_following_callback
+        )
+
+    async def set_mtmount_camera_cable_wrap_following_callback(self, data: salobj.BaseMsgType) -> None:
+        """Callback function to set the camera cable wrap (CCW) following
+        status.
+
+        Parameters
+        ----------
+        data : `object`
+            Data of the SAL message.
+        """
+
+        self._is_ccw_following = bool(data.enabled)
+        self.log.info(f"Receive new CCW following status: {self._is_ccw_following}")
+
+    def is_camera_cable_wrap_following(self) -> bool:
+        """Camera cable wrap (CCW) is following or not. If the check of CCW is
+        bypassed, then always return True.
+
+        Returns
+        -------
+        `bool`
+            True if CCW is following. False otherwise.
+        """
+
+        return True if self._bypass_ccw else self._is_ccw_following
 
     async def start(self) -> None:
         await super().start()
@@ -167,6 +201,22 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         from the low-level controller.
         """
         try:
+            # Fail the rotator if the camera cable wrap is not following in
+            # the tracking.
+            if (
+                self.client.telemetry.enabled_substate  # type: ignore[union-attr]
+                == EnabledSubstate.SLEWING_OR_TRACKING
+            ) and (not self.is_camera_cable_wrap_following()):
+                self.log.error(
+                    "Camera cable wrap is not following in the tracking. Please check the MTMount CSC."
+                )
+
+                await self.evt_errorCode.set_write(
+                    errorCode=ErrorCode.CCW_FOLLOWING_ERROR,
+                    errorReport="Camera cable wrap is not following",
+                )
+                await self.command_llv_fault()
+
             # Get camera cable wrap telemetry and check its age.
             try:
                 ccw_data = await self.mtmount_remote.tel_cameraCableWrap.next(
@@ -309,6 +359,15 @@ class RotatorCsc(hexrotcomm.BaseCsc):
         # accumulating the count and otherwise it makes no difference.
         self._num_ccw_following_errors = 0
 
+        # Deal with the condition that the MTMount CSC has already enabled.
+        # Under this condition, maybe the
+        # self.set_mount_camera_cable_wrap_following_callback() will not be
+        # triggered. Therefore, take the data from the cache.
+        data = self.mtmount_remote.evt_cameraCableWrapFollowing.get()
+        self._is_ccw_following = False if (data is None) else bool(data.enabled)
+
+        self.log.info(f"The CCW following status is {self._is_ccw_following}")
+
     async def do_configureJerk(self, data: salobj.BaseMsgType) -> None:
         """Configure the jerk limit.
 
@@ -419,6 +478,8 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         self.assert_enabled_substate(EnabledSubstate.STATIONARY)
 
+        self.assert_camera_cable_wrap_is_following()
+
         # Workaround the mypy check
         assert self.client is not None
 
@@ -454,6 +515,18 @@ class RotatorCsc(hexrotcomm.BaseCsc):
 
         if self._is_motion_locked:
             raise AssertionError("Motion is locked")
+
+    def assert_camera_cable_wrap_is_following(self) -> None:
+        """Assert the camera cable wrap is following.
+
+        Raises
+        ------
+        `AssertionError`
+            When the camera cable wrap is not following.
+        """
+
+        if not self.is_camera_cable_wrap_following():
+            raise AssertionError("Camera cable wrap is not following. Enable this in MTMount CSC.")
 
     async def do_stop(self, data: salobj.BaseMsgType) -> None:
         """Halt tracking or any other motion."""
@@ -521,6 +594,9 @@ class RotatorCsc(hexrotcomm.BaseCsc):
             code=enums.CommandCode.SET_ENABLED_SUBSTATE,
             param1=enums.SetEnabledSubstateParam.TRACK,
         )
+
+        self.assert_camera_cable_wrap_is_following()
+
         self._tracking_started_telemetry_counter = 2
 
     async def do_lockMotion(self, data: salobj.BaseMsgType) -> None:

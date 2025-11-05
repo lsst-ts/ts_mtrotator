@@ -6,6 +6,11 @@
 Version History
 ###############
 
+v1.3.0
+-------
+
+* Monitor the camera cable wrap is following or not.
+
 v1.2.11
 -------
 
