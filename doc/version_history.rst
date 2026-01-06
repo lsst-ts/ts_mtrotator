@@ -6,6 +6,12 @@
 Version History
 ###############
 
+v1.3.2
+-------
+
+* Fix the ruff format.
+* Add the **documenteer.toml**.
+
 v1.3.1
 -------
 
