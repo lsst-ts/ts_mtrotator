@@ -22,6 +22,7 @@
 import unittest
 
 import jsonschema
+
 from lsst.ts import mtrotator, salobj
 
 
