@@ -4,7 +4,7 @@ This configuration only affects single-package Sphinx documentation builds.
 """
 
 import lsst.ts.mtrotator  # noqa
-from documenteer.conf.pipelinespkg import *  # noqa
+from documenteer.conf.guide import *  # noqa
 
 project = "ts_mtrotator"
 html_theme_options["logotext"] = project  # type: ignore # noqa
