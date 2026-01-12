@@ -27,6 +27,7 @@ import typing
 import unittest
 
 import pytest
+
 from lsst.ts import hexrotcomm, mtrotator, salobj, utils
 from lsst.ts.mtrotator.rotator_csc import CLOCK_OFFSET_EVENT_INTERVAL
 from lsst.ts.xml.enums.MTRotator import (
