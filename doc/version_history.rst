@@ -6,6 +6,11 @@
 Version History
 ###############
 
+v1.3.3
+-------
+
+* Add and update the license header.
+
 v1.3.2
 -------
 
