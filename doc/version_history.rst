@@ -6,6 +6,11 @@
 Version History
 ###############
 
+v1.3.4
+-------
+
+* Add the ``local_scheme="no-local-version"`` to the **setup.py**.
+
 v1.3.3
 -------
 
